@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>便利店收银系统</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:'Noto Sans SC',sans-serif;
+    min-height:100vh;
+    background:#0a0a0f;
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;
+  }
+  .bg{
+    position:fixed;inset:0;
+    background: radial-gradient(ellipse at 20% 50%, #1a1a3e 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, #0d2a1a 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, #1a0d2a 0%, transparent 50%);
+  }
+  .grid{
+    position:fixed;inset:0;
+    background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+  .container{position:relative;z-index:1;text-align:center;padding:2rem;}
+  .logo{
+    font-size:4rem;font-weight:900;letter-spacing:-2px;
+    background:linear-gradient(135deg,#fff 0%,#a0f0c8 50%,#6ec6ff 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    margin-bottom:.5rem;
+    animation: fadeDown .8s ease both;
+  }
+  .subtitle{
+    color:rgba(255,255,255,.4);font-size:1rem;letter-spacing:4px;text-transform:uppercase;
+    margin-bottom:4rem;
+    animation: fadeDown .8s .15s ease both;
+  }
+  .cards{display:flex;gap:2rem;flex-wrap:wrap;justify-content:center;}
+  .card{
+    width:280px;border-radius:20px;padding:2.5rem 2rem;
+    text-decoration:none;
+    position:relative;overflow:hidden;
+    transition:transform .3s, box-shadow .3s;
+    animation: fadeUp .8s ease both;
+  }
+  .card:nth-child(1){
+    background:linear-gradient(135deg,#1a3a2a,#0d2018);
+    border:1px solid rgba(100,255,160,.2);
+    animation-delay:.3s;
+  }
+  .card:nth-child(2){
+    background:linear-gradient(135deg,#1a1a3a,#0d0d20);
+    border:1px solid rgba(100,160,255,.2);
+    animation-delay:.45s;
+  }
+  .card::before{
+    content:'';position:absolute;inset:0;
+    background:linear-gradient(135deg,rgba(255,255,255,.05),transparent);
+    opacity:0;transition:opacity .3s;
+  }
+  .card:hover{transform:translateY(-8px);}
+  .card:hover::before{opacity:1;}
+  .card:nth-child(1):hover{box-shadow:0 20px 60px rgba(100,255,160,.15);}
+  .card:nth-child(2):hover{box-shadow:0 20px 60px rgba(100,160,255,.15);}
+  .icon{font-size:3rem;margin-bottom:1.5rem;display:block;}
+  .card-title{font-size:1.5rem;font-weight:700;color:#fff;margin-bottom:.75rem;}
+  .card:nth-child(1) .card-title{color:#7dffc0;}
+  .card:nth-child(2) .card-title{color:#7dc0ff;}
+  .card-desc{font-size:.9rem;color:rgba(255,255,255,.5);line-height:1.7;}
+  .tag{
+    display:inline-block;margin-top:1.5rem;padding:.4rem 1rem;
+    border-radius:20px;font-size:.75rem;font-weight:700;letter-spacing:2px;
+  }
+  .card:nth-child(1) .tag{background:rgba(100,255,160,.15);color:#7dffc0;}
+  .card:nth-child(2) .tag{background:rgba(100,160,255,.15);color:#7dc0ff;}
+  @keyframes fadeDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:none}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="grid"></div>
+<div class="container">
+  <div class="logo">🏪 便利店系统</div>
+  <div class="subtitle">Convenience Store POS System</div>
+  <div class="cards">
+    <a class="card" href="/cashier.html">
+      <span class="icon">💰</span>
+      <div class="card-title">收银前台</div>
+      <div class="card-desc">扫描商品条码<br>自动匹配价格<br>快速结算收款</div>
+      <span class="tag">CASHIER</span>
+    </a>
+    <a class="card" href="/admin.html">
+      <span class="icon">⚙️</span>
+      <div class="card-title">管理后台</div>
+      <div class="card-desc">商品信息录入<br>库存管理查询<br>销售数据统计</div>
+      <span class="tag">ADMIN</span>
+    </a>
+  </div>
+</div>
+</body>
+</html>

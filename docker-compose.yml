@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  pos:
+    image: convenience-store-pos
+    build: .
+    container_name: convenience-store
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production

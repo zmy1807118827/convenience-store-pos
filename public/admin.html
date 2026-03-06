@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理后台 — 便利店系统</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2330;--surface3:#21262d;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.12);
+  --blue:#58a6ff;--blue-dim:rgba(88,166,255,.12);
+  --green:#3fb950;--green-dim:rgba(63,185,80,.12);
+  --red:#f85149;--red-dim:rgba(248,81,73,.1);
+  --yellow:#d29922;--yellow-dim:rgba(210,153,34,.1);
+  --text:#e6edf3;--muted:#8b949e;
+  --mono:'JetBrains Mono',monospace;
+}
+body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.back-btn{color:var(--muted);text-decoration:none;font-size:.85rem;transition:color .2s;}
+.back-btn:hover{color:var(--text);}
+.topbar-title{font-weight:700;}
+
+.main{display:flex;flex:1;gap:0;}
+
+.sidebar{width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);padding:1.5rem 1rem;display:flex;flex-direction:column;gap:.35rem;}
+.nav-item{display:flex;align-items:center;gap:.65rem;padding:.65rem .85rem;border-radius:8px;cursor:pointer;font-size:.9rem;color:var(--muted);transition:all .2s;user-select:none;}
+.nav-item:hover{background:var(--surface2);color:var(--text);}
+.nav-item.active{background:var(--blue-dim);color:var(--blue);}
+.nav-icon{font-size:1rem;width:20px;text-align:center;flex-shrink:0;}
+.sidebar-divider{height:1px;background:var(--border);margin:.75rem 0;}
+
+.content{flex:1;padding:1.5rem;overflow-y:auto;min-width:0;}
+.tab-pane{display:none;} .tab-pane.active{display:block;}
+
+/* STAT CARDS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;transition:border-color .2s;}
+.stat-card:hover{border-color:var(--border2);}
+.stat-icon{font-size:1.5rem;margin-bottom:.75rem;}
+.stat-label{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:.35rem;}
+.stat-value{font-size:1.75rem;font-weight:700;font-family:var(--mono);}
+.stat-value.green{color:var(--green);} .stat-value.blue{color:var(--blue);} .stat-value.yellow{color:var(--yellow);}
+
+/* SECTION HEADER */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;}
+.section-title{font-size:1rem;font-weight:700;}
+.header-actions{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;}
+
+/* INPUTS */
+.search-input{padding:.55rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.875rem;outline:none;width:200px;transition:border-color .2s;}
+.search-input:focus{border-color:var(--blue);}
+.filter-select{padding:.55rem .875rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.875rem;outline:none;cursor:pointer;}
+
+/* BUTTONS */
+.btn-primary{padding:.6rem 1.1rem;border-radius:8px;border:none;background:var(--blue);color:#000;font-size:.85rem;font-weight:700;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:opacity .2s;display:flex;align-items:center;gap:.4rem;}
+.btn-primary:hover{opacity:.85;}
+.btn-green{padding:.6rem 1.1rem;border-radius:8px;border:none;background:var(--green);color:#000;font-size:.85rem;font-weight:700;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:opacity .2s;display:flex;align-items:center;gap:.4rem;}
+.btn-green:hover{opacity:.85;}
+.btn-secondary{padding:.6rem 1.1rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:.85rem;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:background .2s;display:flex;align-items:center;gap:.4rem;}
+.btn-secondary:hover{background:var(--surface2);}
+.btn-danger{padding:.45rem .9rem;border-radius:6px;border:none;background:transparent;color:var(--muted);font-size:.8rem;cursor:pointer;transition:color .2s,background .2s;}
+.btn-danger:hover{color:var(--red);background:var(--red-dim);}
+.btn-edit{padding:.45rem .9rem;border-radius:6px;border:none;background:transparent;color:var(--muted);font-size:.8rem;cursor:pointer;transition:color .2s,background .2s;}
+.btn-edit:hover{color:var(--blue);background:var(--blue-dim);}
+
+/* TABLE */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.data-table{width:100%;border-collapse:collapse;}
+.data-table thead th{padding:.75rem 1rem;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:2px;color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface);}
+.data-table tbody tr{border-bottom:1px solid var(--border);transition:background .15s;}
+.data-table tbody tr:last-child{border-bottom:none;}
+.data-table tbody tr:hover{background:rgba(255,255,255,.02);}
+.data-table td{padding:.8rem 1rem;vertical-align:middle;font-size:.875rem;}
+.badge{display:inline-block;padding:.2rem .6rem;border-radius:20px;font-size:.75rem;font-weight:600;}
+.badge-blue{background:var(--blue-dim);color:var(--blue);}
+.badge-green{background:var(--green-dim);color:var(--green);}
+.badge-yellow{background:var(--yellow-dim);color:var(--yellow);}
+.mono{font-family:var(--mono);}
+.stock-warn{color:var(--yellow);} .stock-danger{color:var(--red);}
+
+/* BATCH TOOLBAR */
+.batch-bar{
+  display:none;align-items:center;gap:.75rem;flex-wrap:wrap;
+  background:var(--blue-dim);border:1px solid rgba(88,166,255,.25);
+  border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;
+}
+.batch-bar.show{display:flex;}
+.batch-info{font-size:.875rem;color:var(--blue);font-weight:600;flex-shrink:0;}
+.batch-sep{width:1px;height:20px;background:rgba(88,166,255,.3);flex-shrink:0;}
+.batch-btn{padding:.5rem 1rem;border-radius:6px;border:none;font-size:.825rem;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:opacity .2s;font-weight:600;}
+.batch-btn.red{background:var(--red-dim);color:var(--red);border:1px solid rgba(248,81,73,.25);}
+.batch-btn.red:hover{opacity:.75;}
+.batch-btn.blue{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(88,166,255,.25);}
+.batch-btn.blue:hover{opacity:.75;}
+.batch-btn.yellow{background:var(--yellow-dim);color:var(--yellow);border:1px solid rgba(210,153,34,.25);}
+.batch-btn.yellow:hover{opacity:.75;}
+
+/* INLINE BATCH INPUT */
+.batch-input-wrap{display:flex;align-items:center;gap:.5rem;}
+.batch-input{width:90px;padding:.4rem .6rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:.85rem;font-family:var(--mono);outline:none;}
+.batch-input:focus{border-color:var(--blue);}
+
+/* CHECKBOX */
+.cb{width:16px;height:16px;cursor:pointer;accent-color:var(--blue);}
+
+/* IMPORT AREA */
+.import-zone{
+  border:2px dashed var(--border);border-radius:12px;padding:2rem;text-align:center;
+  cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:1rem;
+}
+.import-zone:hover,.import-zone.drag{border-color:var(--blue);background:var(--blue-dim);}
+.import-zone input[type=file]{display:none;}
+.import-icon{font-size:2rem;margin-bottom:.5rem;}
+.import-label{color:var(--muted);font-size:.9rem;}
+.import-label strong{color:var(--blue);}
+.import-preview{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem;max-height:200px;overflow-y:auto;display:none;}
+.import-preview table{width:100%;border-collapse:collapse;font-size:.8rem;}
+.import-preview th{color:var(--muted);padding:.35rem .5rem;border-bottom:1px solid var(--border);text-align:left;}
+.import-preview td{padding:.35rem .5rem;color:var(--text);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:300;opacity:0;pointer-events:none;transition:opacity .25s;}
+.modal-overlay.show{opacity:1;pointer-events:all;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:2rem;width:460px;max-width:92vw;transform:scale(.96);transition:transform .25s;}
+.modal-overlay.show .modal{transform:scale(1);}
+.modal-title{font-size:1.1rem;font-weight:700;margin-bottom:1.5rem;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.form-full{grid-column:1/-1;}
+.form-group{display:flex;flex-direction:column;gap:.4rem;}
+.form-label{font-size:.8rem;color:var(--muted);}
+.form-input,.form-select{padding:.7rem .9rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.9rem;outline:none;transition:border-color .2s;}
+.form-input:focus,.form-select:focus{border-color:var(--blue);}
+.form-actions{display:flex;justify-content:flex-end;gap:.75rem;margin-top:1.5rem;}
+
+/* TOAST */
+.toast{position:fixed;bottom:2rem;right:2rem;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.75rem 1.25rem;font-size:.875rem;opacity:0;transition:opacity .3s,transform .3s;transform:translateY(10px);z-index:999;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+.toast.success{border-color:rgba(63,185,80,.4);color:var(--green);}
+.toast.error{border-color:rgba(248,81,73,.4);color:var(--red);}
+.toast.info{border-color:rgba(88,166,255,.4);color:var(--blue);}
+
+.empty-state{text-align:center;padding:3rem;color:var(--muted);}
+.empty-state .ei{font-size:2.5rem;display:block;margin-bottom:.75rem;}
+
+/* CHECKBOX */
+.cb-wrap{display:flex;align-items:center;justify-content:center;}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue);cursor:pointer;}
+
+/* BATCH TOOLBAR */
+.batch-bar{
+  display:none;align-items:center;gap:.75rem;flex-wrap:wrap;
+  background:var(--blue-dim);border:1px solid rgba(88,166,255,.25);
+  border-radius:10px;padding:.65rem 1rem;margin-bottom:.75rem;
+}
+.batch-bar.show{display:flex;}
+.batch-count{font-size:.875rem;color:var(--blue);font-weight:600;margin-right:.25rem;}
+.btn-batch-danger{padding:.5rem 1rem;border-radius:7px;border:none;background:var(--red-dim);color:var(--red);font-size:.85rem;font-weight:600;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:background .2s;}
+.btn-batch-danger:hover{background:rgba(248,81,73,.2);}
+.btn-batch{padding:.5rem 1rem;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:.85rem;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:background .2s;}
+.btn-batch:hover{background:var(--surface3);}
+.batch-sep{width:1px;height:20px;background:var(--border);flex-shrink:0;}
+
+/* MINI MODAL */
+.mini-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:400;opacity:0;pointer-events:none;transition:opacity .2s;}
+.mini-modal-overlay.show{opacity:1;pointer-events:all;}
+.mini-modal{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:1.5rem;width:320px;max-width:90vw;}
+.mini-modal-title{font-size:1rem;font-weight:700;margin-bottom:1rem;}
+.mini-modal-actions{display:flex;gap:.75rem;margin-top:1rem;}
+.mini-modal-actions .btn-primary{flex:1;justify-content:center;}
+.mini-modal-actions .btn-secondary{flex:1;justify-content:center;}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <a href="/" class="back-btn">← 返回主页</a>
+  <span class="topbar-title">⚙️ 管理后台</span>
+  <span style="font-size:.8rem;color:var(--muted)" id="topTime"></span>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span class="nav-icon">📊</span> 数据概览</div>
+    <div class="nav-item" onclick="switchTab('products')" id="nav-products"><span class="nav-icon">📦</span> 商品管理</div>
+    <div class="nav-item" onclick="switchTab('import')" id="nav-import"><span class="nav-icon">📂</span> 导入导出</div>
+    <div class="nav-item" onclick="switchTab('transactions')" id="nav-transactions"><span class="nav-icon">🧾</span> 交易记录</div>
+    <div class="sidebar-divider"></div>
+    <div class="nav-item" onclick="window.open('/cashier.html','_blank')" style="color:var(--green)"><span class="nav-icon">💰</span> 前往收银台</div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="tab-pane active" id="tab-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-label">商品总数</div><div class="stat-value blue" id="stat-products">—</div></div>
+        <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">今日销售额</div><div class="stat-value green" id="stat-sales">—</div></div>
+        <div class="stat-card"><div class="stat-icon">🧾</div><div class="stat-label">今日订单数</div><div class="stat-value blue" id="stat-orders">—</div></div>
+        <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-label">低库存商品</div><div class="stat-value yellow" id="stat-low">—</div></div>
+      </div>
+      <div class="section-header"><span class="section-title">最近交易</span></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>单号</th><th>时间</th><th>商品</th><th>应付</th><th>实收</th><th>找零</th></tr></thead>
+          <tbody id="dashTxBody"><tr><td colspan="6"><div class="empty-state"><span class="ei">📋</span>暂无记录</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PRODUCTS -->
+    <div class="tab-pane" id="tab-products">
+      <div class="section-header">
+        <span class="section-title">商品管理</span>
+        <div class="header-actions">
+          <input class="search-input" id="searchInput" placeholder="搜索名称或条码..." oninput="loadProducts()">
+          <select class="filter-select" id="catFilter" onchange="loadProducts()">
+            <option value="全部">全部分类</option>
+            <option>饮料</option><option>零食</option><option>方便食品</option><option>日用品</option><option>其他</option>
+          </select>
+          <button class="btn-primary" onclick="openAddModal()">+ 新增商品</button>
+        </div>
+      </div>
+      <!-- BATCH TOOLBAR -->
+      <div class="batch-bar" id="batchBar">
+        <span class="batch-info" id="batchInfo">已选 0 项</span>
+        <div class="batch-sep"></div>
+        <button class="batch-btn red" onclick="batchDelete()">🗑 批量删除</button>
+        <div class="batch-sep"></div>
+        <div class="batch-input-wrap">
+          <span style="font-size:.825rem;color:var(--muted)">统一库存</span>
+          <input class="batch-input" id="batchStockVal" type="number" min="0" placeholder="数量">
+          <button class="batch-btn yellow" onclick="batchSetStock()">✔ 设置</button>
+        </div>
+        <div class="batch-sep"></div>
+        <div class="batch-input-wrap">
+          <span style="font-size:.825rem;color:var(--muted)">统一价格</span>
+          <input class="batch-input" id="batchPriceVal" type="number" min="0" step="0.01" placeholder="金额">
+          <button class="batch-btn blue" onclick="batchSetPrice()">✔ 设置</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th style="width:36px"><input type="checkbox" class="cb" id="selectAll" onclick="toggleSelectAll()"></th>
+            <th>ID</th><th>条码</th><th>商品名称</th><th>分类</th><th>价格</th><th>库存</th><th>操作</th>
+          </tr></thead>
+          <tbody id="productBody"><tr><td colspan="8"><div class="empty-state"><span class="ei">⏳</span>加载中...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- IMPORT / EXPORT -->
+    <div class="tab-pane" id="tab-import">
+      <div class="section-header"><span class="section-title">导入 / 导出商品数据</span></div>
+
+      <!-- EXPORT -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;">
+        <div style="font-weight:700;margin-bottom:.5rem;">📤 导出商品数据</div>
+        <div style="font-size:.875rem;color:var(--muted);margin-bottom:1rem;">将当前所有商品信息导出为 CSV 文件，可用 Excel 打开编辑。</div>
+        <button class="btn-green" onclick="exportCSV()">⬇ 下载 CSV 文件</button>
+      </div>
+
+      <!-- IMPORT -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+        <div style="font-weight:700;margin-bottom:.5rem;">📥 导入商品数据</div>
+        <div style="font-size:.875rem;color:var(--muted);margin-bottom:1rem;">
+          上传 CSV 文件批量导入商品。CSV 格式：<code style="font-family:var(--mono);color:var(--blue)">条码,名称,价格,库存,分类</code>（首行为标题行，会自动跳过）。<br>
+          <span style="color:var(--yellow)">⚠ 条码已存在的商品将被跳过，不会重复添加。</span>
+        </div>
+
+        <div class="import-zone" id="importZone" onclick="document.getElementById('csvFileInput').click()">
+          <input type="file" id="csvFileInput" accept=".csv" onchange="handleCSVFile(this.files[0])">
+          <div class="import-icon">📄</div>
+          <div class="import-label">点击选择 CSV 文件，或将文件拖拽到此处<br><strong>支持 .csv 格式</strong></div>
+        </div>
+
+        <div class="import-preview" id="importPreview">
+          <table>
+            <thead><tr><th>条码</th><th>名称</th><th>价格</th><th>库存</th><th>分类</th></tr></thead>
+            <tbody id="importPreviewBody"></tbody>
+          </table>
+        </div>
+
+        <div id="importActions" style="display:none;display:flex;gap:.75rem;flex-wrap:wrap;">
+          <button class="btn-green" id="importConfirmBtn" onclick="confirmImport()">✅ 确认导入</button>
+          <button class="btn-secondary" onclick="cancelImport()">取消</button>
+          <span id="importCount" style="font-size:.85rem;color:var(--muted);align-self:center;"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="tab-pane" id="tab-transactions">
+      <div class="section-header"><span class="section-title">交易记录</span><button class="btn-secondary" onclick="loadTransactions()">刷新</button></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>单号</th><th>时间</th><th>商品明细</th><th>合计</th><th>实收</th><th>找零</th></tr></thead>
+          <tbody id="txBody"><tr><td colspan="6"><div class="empty-state"><span class="ei">⏳</span>加载中...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PRODUCT MODAL -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">新增商品</div>
+    <!-- API 查询状态 -->
+    <div id="f-lookup-status" style="display:none;align-items:center;gap:.6rem;padding:.6rem .9rem;border-radius:8px;margin-bottom:1rem;font-size:.85rem;"></div>
+    <div class="form-grid">
+      <input type="hidden" id="editId">
+      <div class="form-group form-full">
+        <label class="form-label">条码 *</label>
+        <input class="form-input" id="f-barcode" placeholder="如：6901028001467" onkeydown="handleBarcodeKeydown(event)">
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">商品名称 *</label>
+        <input class="form-input" id="f-name" placeholder="如：农夫山泉 550ml">
+      </div>
+      <div class="form-group">
+        <label class="form-label">价格 (¥) *</label>
+        <input class="form-input" id="f-price" type="number" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">库存数量</label>
+        <input class="form-input" id="f-stock" type="number" min="0" placeholder="0">
+      </div>
+      <div class="form-group form-full">
+        <label class="form-label">分类</label>
+        <select class="form-select" id="f-category">
+          <option value="其他" selected>其他</option>
+          <option>饮料</option><option>零食</option><option>方便食品</option><option>日用品</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn-primary" onclick="saveProduct()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MINI MODAL: 批量设置库存 -->
+<div class="mini-modal-overlay" id="batchStockModal">
+  <div class="mini-modal">
+    <div class="mini-modal-title">📦 批量设置库存</div>
+    <div class="form-group">
+      <label class="form-label">将所选商品库存统一设置为</label>
+      <input class="form-input" id="batchStockVal" type="number" min="0" placeholder="输入库存数量">
+    </div>
+    <div class="mini-modal-actions">
+      <button class="btn-secondary" onclick="closeMiniModal('batchStockModal')">取消</button>
+      <button class="btn-primary" onclick="confirmBatchStock()">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- MINI MODAL: 批量设置价格 -->
+<div class="mini-modal-overlay" id="batchPriceModal">
+  <div class="mini-modal">
+    <div class="mini-modal-title">💲 批量设置价格</div>
+    <div class="form-group">
+      <label class="form-label">将所选商品价格统一设置为 (¥)</label>
+      <input class="form-input" id="batchPriceVal" type="number" min="0.01" step="0.01" placeholder="输入价格">
+    </div>
+    <div class="mini-modal-actions">
+      <button class="btn-secondary" onclick="closeMiniModal('batchPriceModal')">取消</button>
+      <button class="btn-primary" onclick="confirmBatchPrice()">确认</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- Clock ----
+function updateTime(){ document.getElementById('topTime').textContent=new Date().toLocaleString('zh-CN'); }
+setInterval(updateTime,1000); updateTime();
+
+// ---- Toast ----
+let toastTimer;
+function showToast(msg,type='success'){
+  const el=document.getElementById('toast');
+  el.textContent=(type==='success'?'✓ ':type==='error'?'✗ ':'ℹ ')+msg;
+  el.className='toast show '+type;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{el.className='toast';},3000);
+}
+
+// ---- Tab ----
+function switchTab(name){
+  document.querySelectorAll('.tab-pane').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+  if(name==='dashboard'){loadStats();loadDashTx();}
+  if(name==='products')loadProducts();
+  if(name==='transactions')loadTransactions();
+}
+
+// ---- Dashboard ----
+async function loadStats(){
+  try{
+    const d=await fetch('/api/stats').then(r=>r.json());
+    document.getElementById('stat-products').textContent=d.totalProducts;
+    document.getElementById('stat-sales').textContent='¥'+d.todaySales;
+    document.getElementById('stat-orders').textContent=d.todayOrders;
+    document.getElementById('stat-low').textContent=d.lowStock;
+  }catch(e){}
+}
+async function loadDashTx(){
+  const txs=await fetch('/api/transactions').then(r=>r.json());
+  const body=document.getElementById('dashTxBody');
+  if(!txs.length){body.innerHTML='<tr><td colspan="6"><div class="empty-state"><span class="ei">📋</span>暂无记录</div></td></tr>';return;}
+  body.innerHTML=txs.slice(0,10).map(t=>{
+    const items=JSON.parse(t.items);
+    const names=items.map(i=>`${i.name}×${i.quantity}`).join('、');
+    return `<tr>
+      <td class="mono" style="color:var(--muted)">#${t.id}</td>
+      <td style="color:var(--muted);font-size:.8rem">${t.created_at}</td>
+      <td style="font-size:.8rem;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${names}</td>
+      <td class="mono">¥${t.total.toFixed(2)}</td>
+      <td class="mono">¥${t.paid.toFixed(2)}</td>
+      <td class="mono" style="color:var(--green)">¥${t.change.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ---- Products ----
+async function loadProducts(){
+  const q=document.getElementById('searchInput').value;
+  const cat=document.getElementById('catFilter').value;
+  const products=await fetch(`/api/products?q=${encodeURIComponent(q)}&category=${encodeURIComponent(cat)}`).then(r=>r.json());
+  const body=document.getElementById('productBody');
+  if(!products.length){body.innerHTML='<tr><td colspan="8"><div class="empty-state"><span class="ei">📦</span>没有找到商品</div></td></tr>';updateBatchBar();return;}
+  const cats={饮料:'badge-blue',零食:'badge-green',方便食品:'badge-yellow',日用品:'badge-blue',其他:''};
+  body.innerHTML=products.map(p=>{
+    const sc=p.stock<0?'stock-danger':p.stock<10?'stock-warn':'';
+    return `<tr data-id="${p.id}">
+      <td><input type="checkbox" class="cb row-cb" value="${p.id}" onchange="updateBatchBar()"></td>
+      <td class="mono" style="color:var(--muted)">${p.id}</td>
+      <td class="mono" style="color:var(--muted);font-size:.8rem">${p.barcode}</td>
+      <td><strong>${p.name}</strong></td>
+      <td><span class="badge ${cats[p.category]||''}">${p.category}</span></td>
+      <td class="mono" style="color:var(--green)">¥${Number(p.price).toFixed(2)}</td>
+      <td class="mono ${sc}">${p.stock}</td>
+      <td>
+        <button class="btn-edit" onclick='openEditModal(${JSON.stringify(p)})'>编辑</button>
+        <button class="btn-danger" onclick="deleteProduct(${p.id},'${p.name.replace(/'/g,"\\'")}')">删除</button>
+      </td>
+    </tr>`;
+  }).join('');
+  document.getElementById('selectAll').checked=false;
+  updateBatchBar();
+}
+
+// ---- Transactions ----
+async function loadTransactions(){
+  const txs=await fetch('/api/transactions').then(r=>r.json());
+  const body=document.getElementById('txBody');
+  if(!txs.length){body.innerHTML='<tr><td colspan="6"><div class="empty-state"><span class="ei">🧾</span>暂无记录</div></td></tr>';return;}
+  body.innerHTML=txs.map(t=>{
+    const items=JSON.parse(t.items);
+    const detail=items.map(i=>`${i.name} × ${i.quantity} = ¥${(i.price*i.quantity).toFixed(2)}`).join('<br>');
+    return `<tr>
+      <td class="mono" style="color:var(--muted)">#${t.id}</td>
+      <td style="font-size:.8rem;color:var(--muted)">${t.created_at}</td>
+      <td style="font-size:.8rem;color:var(--muted)">${detail}</td>
+      <td class="mono">¥${t.total.toFixed(2)}</td>
+      <td class="mono">¥${t.paid.toFixed(2)}</td>
+      <td class="mono" style="color:var(--green)">¥${t.change.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ---- Modal ----
+function openAddModal(){
+  document.getElementById('modalTitle').textContent='新增商品';
+  document.getElementById('editId').value='';
+  ['barcode','name','price','stock'].forEach(k=>document.getElementById('f-'+k).value='');
+  document.getElementById('f-category').value='其他';
+  hideLookupStatus();
+  document.getElementById('productModal').classList.add('show');
+  setTimeout(()=>document.getElementById('f-barcode').focus(),100);
+}
+function openEditModal(p){
+  document.getElementById('modalTitle').textContent='编辑商品';
+  document.getElementById('editId').value=p.id;
+  document.getElementById('f-barcode').value=p.barcode;
+  document.getElementById('f-name').value=p.name;
+  document.getElementById('f-price').value=p.price;
+  document.getElementById('f-stock').value=p.stock;
+  document.getElementById('f-category').value=p.category;
+  hideLookupStatus();
+  document.getElementById('productModal').classList.add('show');
+}
+function hideLookupStatus(){
+  const el=document.getElementById('f-lookup-status');
+  el.style.display='none'; el.innerHTML='';
+}
+
+function showLookupStatus(type, msg){
+  const el=document.getElementById('f-lookup-status');
+  const styles={
+    loading:{bg:'rgba(88,166,255,.1)',border:'rgba(88,166,255,.25)',color:'var(--blue)'},
+    success:{bg:'rgba(63,185,80,.1)',border:'rgba(63,185,80,.25)',color:'var(--green)'},
+    warn:{bg:'rgba(210,153,34,.1)',border:'rgba(210,153,34,.25)',color:'var(--yellow)'},
+  };
+  const s=styles[type]||styles.warn;
+  el.style.cssText=`display:flex;align-items:center;gap:.6rem;padding:.6rem .9rem;border-radius:8px;margin-bottom:1rem;font-size:.85rem;background:${s.bg};border:1px solid ${s.border};color:${s.color}`;
+  el.innerHTML=msg;
+}
+
+async function handleBarcodeKeydown(e){
+  if(e.key!=='Enter') return;
+  e.preventDefault();
+  const barcode=document.getElementById('f-barcode').value.trim();
+  if(!barcode) return;
+  // 只在新增模式（editId为空）时自动查询
+  if(document.getElementById('editId').value) return;
+  showLookupStatus('loading','⏳ 正在查询条码信息...');
+  try{
+    const res=await fetch(`/api/barcode-lookup/${encodeURIComponent(barcode)}`);
+    const json=await res.json();
+    if(json.code===200 && json.data && json.data.found){
+      const d=json.data;
+      if(d.goods_name) document.getElementById('f-name').value=d.goods_name;
+      if(d.price)      document.getElementById('f-price').value=parseFloat(d.price).toFixed(2);
+      if(d.category){
+        const catMap={'饮料':'饮料','零食':'零食','食品':'零食','方便食品':'方便食品','日用':'日用品','日用品':'日用品'};
+        const matched=Object.keys(catMap).find(k=>d.category.includes(k));
+        if(matched) document.getElementById('f-category').value=catMap[matched];
+      }
+      showLookupStatus('success','✅ 已自动填充商品信息，请核对后保存');
+      document.getElementById('f-name').focus();
+    } else {
+      showLookupStatus('warn','⚠️ 未查询到该条码信息，请手动填写');
+      document.getElementById('f-name').focus();
+    }
+  } catch(e){
+    showLookupStatus('warn','⚠️ 查询失败，请手动填写');
+    document.getElementById('f-name').focus();
+  }
+}
+
+function closeModal(){ document.getElementById('productModal').classList.remove('show'); }
+document.getElementById('productModal').addEventListener('click',e=>{ if(e.target===document.getElementById('productModal'))closeModal(); });
+
+async function saveProduct(){
+  const id=document.getElementById('editId').value;
+  const body={
+    barcode:document.getElementById('f-barcode').value.trim(),
+    name:document.getElementById('f-name').value.trim(),
+    price:document.getElementById('f-price').value,
+    stock:document.getElementById('f-stock').value,
+    category:document.getElementById('f-category').value,
+  };
+  if(!body.barcode||!body.name||!body.price){showToast('请填写必填项','error');return;}
+  const url=id?`/api/products/${id}`:'/api/products';
+  const method=id?'PUT':'POST';
+  const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await res.json();
+  if(!res.ok){showToast(data.error,'error');return;}
+  showToast(id?'商品已更新':'商品已添加');
+  closeModal(); loadProducts();
+}
+
+async function deleteProduct(id,name){
+  if(!confirm(`确认删除「${name}」？`))return;
+  await fetch(`/api/products/${id}`,{method:'DELETE'});
+  showToast('已删除'); loadProducts();
+}
+
+// ============================================================
+// 导出 CSV
+// ============================================================
+async function exportCSV(){
+  const products=await fetch('/api/products').then(r=>r.json());
+  if(!products.length){showToast('没有商品数据可导出','error');return;}
+  const header='条码,名称,价格,库存,分类';
+  const rows=products.map(p=>[
+    `"${p.barcode}"`,
+    `"${p.name.replace(/"/g,'""')}"`,
+    p.price,
+    p.stock,
+    `"${p.category}"`
+  ].join(','));
+  const csv='\uFEFF'+header+'\n'+rows.join('\n'); // BOM for Excel
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`商品数据_${new Date().toLocaleDateString('zh-CN').replace(/\//g,'-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`已导出 ${products.length} 条商品数据`);
+}
+
+// ============================================================
+// 导入 CSV
+// ============================================================
+let importData=[];
+
+// 拖拽支持
+const importZone=document.getElementById('importZone');
+importZone.addEventListener('dragover',e=>{e.preventDefault();importZone.classList.add('drag');});
+importZone.addEventListener('dragleave',()=>importZone.classList.remove('drag'));
+importZone.addEventListener('drop',e=>{e.preventDefault();importZone.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)handleCSVFile(f);});
+
+function handleCSVFile(file){
+  if(!file||!file.name.endsWith('.csv')){showToast('请选择 .csv 文件','error');return;}
+  // 先尝试 UTF-8，若出现乱码替换字符 \uFFFD 说明是 GBK 编码，自动重读
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const text=e.target.result;
+    if(text.includes('\uFFFD')){
+      const reader2=new FileReader();
+      reader2.onload=e2=>parseCSV(e2.target.result);
+      reader2.readAsText(file,'GBK');
+    } else {
+      parseCSV(text);
+    }
+  };
+  reader.readAsText(file,'UTF-8');
+}
+
+function parseCSV(text){
+  // 去除BOM
+  const clean=text.replace(/^\uFEFF/,'');
+  const lines=clean.split(/\r?\n/).filter(l=>l.trim());
+  if(lines.length<2){showToast('CSV 文件内容为空或格式不正确','error');return;}
+
+  // 跳过标题行
+  const dataLines=lines.slice(1);
+  importData=[];
+
+  for(const line of dataLines){
+    // 简单CSV解析（处理带引号的字段）
+    const cols=parseCSVLine(line);
+    if(cols.length<3)continue;
+    const barcode=(cols[0]||'').trim();
+    const name=(cols[1]||'').trim();
+    const price=parseFloat(cols[2]);
+    const stock=parseInt(cols[3])||0;
+    const category=(cols[4]||'其他').trim()||'其他';
+    if(!barcode||!name||isNaN(price))continue;
+    importData.push({barcode,name,price,stock,category});
+  }
+
+  if(!importData.length){showToast('未找到有效数据，请检查CSV格式','error');return;}
+
+  // 显示预览
+  const previewBody=document.getElementById('importPreviewBody');
+  previewBody.innerHTML=importData.slice(0,10).map(r=>`
+    <tr>
+      <td>${r.barcode}</td><td>${r.name}</td>
+      <td>¥${r.price.toFixed(2)}</td><td>${r.stock}</td><td>${r.category}</td>
+    </tr>
+  `).join('');
+  document.getElementById('importPreview').style.display='block';
+  const actionsEl=document.getElementById('importActions');
+  actionsEl.style.display='flex';
+  document.getElementById('importCount').textContent=
+    `共解析到 ${importData.length} 条数据${importData.length>10?' (预览前10条)':''}`;
+}
+
+function parseCSVLine(line){
+  const result=[];
+  let cur='',inQuote=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){
+      if(inQuote&&line[i+1]==='"'){cur+='"';i++;}
+      else inQuote=!inQuote;
+    } else if(c===','&&!inQuote){result.push(cur);cur='';}
+    else cur+=c;
+  }
+  result.push(cur);
+  return result;
+}
+
+async function confirmImport(){
+  if(!importData.length)return;
+  const btn=document.getElementById('importConfirmBtn');
+  btn.disabled=true;btn.textContent='导入中...';
+  let success=0,skip=0,fail=0;
+  for(const p of importData){
+    try{
+      const res=await fetch('/api/products',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(p)});
+      if(res.ok)success++;
+      else if(res.status===409)skip++;
+      else fail++;
+    }catch(e){fail++;}
+  }
+  btn.disabled=false;btn.textContent='✅ 确认导入';
+  showToast(`导入完成：成功 ${success} 条，跳过 ${skip} 条${fail?'，失败 '+fail+' 条':''}`,fail?'error':'success');
+  cancelImport();
+  loadProducts();
+}
+
+function cancelImport(){
+  importData=[];
+  document.getElementById('importPreview').style.display='none';
+  document.getElementById('importActions').style.display='none';
+  document.getElementById('csvFileInput').value='';
+}
+
+// ============================================================
+// 批量操作
+// ============================================================
+function getSelectedIds(){
+  return [...document.querySelectorAll('.row-cb:checked')].map(cb=>parseInt(cb.value));
+}
+
+function toggleSelectAll(){
+  const checked=document.getElementById('selectAll').checked;
+  document.querySelectorAll('.row-cb').forEach(cb=>cb.checked=checked);
+  updateBatchBar();
+}
+
+function updateBatchBar(){
+  const ids=getSelectedIds();
+  const bar=document.getElementById('batchBar');
+  const info=document.getElementById('batchInfo');
+  const total=document.querySelectorAll('.row-cb').length;
+  const allChecked=total>0&&ids.length===total;
+  const selectAll=document.getElementById('selectAll');
+  if(selectAll){
+    selectAll.checked=allChecked;
+    selectAll.indeterminate=ids.length>0&&!allChecked;
+  }
+  if(ids.length>0){
+    bar.classList.add('show');
+    info.textContent=`已选 ${ids.length} 项`;
+  } else {
+    bar.classList.remove('show');
+  }
+}
+
+async function batchDelete(){
+  const ids=getSelectedIds();
+  if(!ids.length)return;
+  if(!confirm(`确认删除选中的 ${ids.length} 个商品？此操作不可恢复。`))return;
+  let ok=0;
+  for(const id of ids){
+    const res=await fetch(`/api/products/${id}`,{method:'DELETE'});
+    if(res.ok)ok++;
+  }
+  showToast(`已删除 ${ok} 个商品`);
+  loadProducts();
+}
+
+async function batchSetStock(){
+  const ids=getSelectedIds();
+  if(!ids.length){showToast('请先选择商品','error');return;}
+  const val=document.getElementById('batchStockVal').value;
+  if(val===''||isNaN(parseInt(val))){showToast('请输入有效库存数量','error');return;}
+  const stock=parseInt(val);
+  // fetch current product info for each id then update
+  let ok=0;
+  for(const id of ids){
+    const p=await fetch(`/api/products/${id}`).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(!p)continue;
+    const res=await fetch(`/api/products/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({barcode:p.barcode,name:p.name,price:p.price,stock,category:p.category})});
+    if(res.ok)ok++;
+  }
+  showToast(`已将 ${ok} 个商品库存设置为 ${stock}`);
+  document.getElementById('batchStockVal').value='';
+  loadProducts();
+}
+
+async function batchSetPrice(){
+  const ids=getSelectedIds();
+  if(!ids.length){showToast('请先选择商品','error');return;}
+  const val=document.getElementById('batchPriceVal').value;
+  const price=parseFloat(val);
+  if(!val||isNaN(price)||price<=0){showToast('请输入有效价格','error');return;}
+  let ok=0;
+  for(const id of ids){
+    const p=await fetch(`/api/products/${id}`).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(!p)continue;
+    const res=await fetch(`/api/products/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({barcode:p.barcode,name:p.name,price,stock:p.stock,category:p.category})});
+    if(res.ok)ok++;
+  }
+  showToast(`已将 ${ok} 个商品价格设置为 ¥${price.toFixed(2)}`);
+  document.getElementById('batchPriceVal').value='';
+  loadProducts();
+}
+
+// ---- Init ----
+loadStats(); loadDashTx();
+</script>
+</body>
+</html>

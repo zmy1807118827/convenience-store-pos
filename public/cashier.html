@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>收银前台 — 便利店系统</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0f1117;--surface:#161b22;--surface2:#1c2330;
+  --border:rgba(255,255,255,.08);
+  --green:#3fb950;--green-dim:rgba(63,185,80,.15);
+  --blue:#58a6ff;--blue-dim:rgba(88,166,255,.12);
+  --red:#f85149;--yellow:#d29922;
+  --text:#e6edf3;--muted:#8b949e;
+  --mono:'JetBrains Mono',monospace;
+}
+body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.topbar-left{display:flex;align-items:center;gap:1rem;}
+.back-btn{color:var(--muted);text-decoration:none;font-size:.85rem;transition:color .2s;}
+.back-btn:hover{color:var(--text);}
+.store-name{font-weight:700;font-size:1rem;}
+.clock{font-family:var(--mono);font-size:.9rem;color:var(--green);background:var(--green-dim);padding:.3rem .75rem;border-radius:6px;}
+
+.main{display:flex;flex:1;gap:0;}
+
+.cart-panel{flex:1;display:flex;flex-direction:column;padding:1.5rem;min-width:0;}
+.panel-title{font-size:.75rem;font-weight:700;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:1rem;}
+
+/* SCAN AREA */
+.scan-area{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:1rem 1.5rem;margin-bottom:.5rem;
+  display:flex;align-items:center;gap:1rem;transition:border-color .2s;position:relative;
+}
+.scan-area:focus-within{border-color:var(--green);}
+.scan-icon{font-size:1.5rem;flex-shrink:0;}
+.scan-input{flex:1;background:transparent;border:none;outline:none;font-size:1.1rem;font-family:var(--mono);color:var(--text);caret-color:var(--green);}
+.scan-input::placeholder{color:var(--muted);font-family:'Noto Sans SC',sans-serif;font-size:.9rem;}
+.scan-hints{display:flex;gap:1rem;flex-shrink:0;}
+.scan-hint-tag{font-size:.75rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:.2rem .5rem;white-space:nowrap;}
+.scan-hint-tag kbd{font-family:var(--mono);color:var(--blue);}
+
+/* SEARCH DROPDOWN */
+.search-dropdown{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;z-index:50;max-height:260px;overflow-y:auto;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);display:none;
+}
+.search-dropdown.show{display:block;}
+.search-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 1rem;cursor:pointer;transition:background .15s;
+  border-bottom:1px solid var(--border);
+}
+.search-item:last-child{border-bottom:none;}
+.search-item:hover,.search-item.active{background:rgba(255,255,255,.05);}
+.search-item-left{display:flex;flex-direction:column;gap:.2rem;}
+.search-item-name{font-size:.9rem;font-weight:500;}
+.search-item-barcode{font-size:.75rem;color:var(--muted);font-family:var(--mono);}
+.search-item-right{display:flex;flex-direction:column;align-items:flex-end;gap:.2rem;}
+.search-item-price{font-family:var(--mono);color:var(--green);font-size:.9rem;}
+.search-item-stock{font-size:.75rem;color:var(--muted);}
+
+/* CART TABLE */
+.cart-table-wrap{flex:1;overflow-y:auto;border-radius:12px;background:var(--surface);border:1px solid var(--border);}
+.cart-table{width:100%;border-collapse:collapse;}
+.cart-table thead th{padding:.75rem 1rem;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:2px;color:var(--muted);border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);}
+.cart-table th:last-child,.cart-table td:last-child{text-align:right;}
+.cart-table tbody tr{transition:background .15s;border-bottom:1px solid var(--border);}
+.cart-table tbody tr:last-child{border-bottom:none;}
+.cart-table tbody tr:hover{background:rgba(255,255,255,.03);}
+.cart-table td{padding:.875rem 1rem;vertical-align:middle;}
+.item-name{font-weight:500;font-size:.95rem;}
+.item-barcode{font-size:.75rem;color:var(--muted);font-family:var(--mono);margin-top:.2rem;}
+.price-cell{font-family:var(--mono);color:var(--muted);font-size:.95rem;}
+.qty-ctrl{display:flex;align-items:center;gap:.5rem;}
+.qty-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:background .2s,border-color .2s;}
+.qty-btn:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2);}
+.qty-num{font-family:var(--mono);font-weight:600;min-width:24px;text-align:center;font-size:.95rem;}
+.subtotal{font-family:var(--mono);font-weight:600;color:var(--text);}
+.del-btn{width:28px;height:28px;border-radius:6px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:color .2s,background .2s;margin-left:.5rem;}
+.del-btn:hover{color:var(--red);background:rgba(248,81,73,.1);}
+.empty-cart{text-align:center;padding:4rem 2rem;color:var(--muted);}
+.empty-cart .empty-icon{font-size:3rem;margin-bottom:1rem;display:block;}
+
+/* PAY PANEL */
+.pay-panel{width:320px;flex-shrink:0;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;padding:1.5rem;gap:1.25rem;}
+.summary-block{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:1.25rem;}
+.summary-row{display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;}
+.summary-row.total-row{border-top:1px solid var(--border);margin-top:.5rem;padding-top:1rem;}
+.summary-label{font-size:.85rem;color:var(--muted);}
+.summary-value{font-family:var(--mono);font-size:.95rem;}
+.total-label{font-weight:700;color:var(--text);}
+.total-value{font-family:var(--mono);font-size:1.75rem;font-weight:700;color:var(--green);}
+.pay-title{font-size:.75rem;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+.quick-btns{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;}
+.quick-btn{padding:.6rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:.85rem;font-family:var(--mono);transition:background .2s,border-color .2s;}
+.quick-btn:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.2);}
+.pay-input-label{font-size:.8rem;color:var(--muted);margin-bottom:.5rem;display:block;}
+.pay-input{width:100%;padding:.875rem 1rem;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:1.25rem;font-family:var(--mono);outline:none;transition:border-color .2s;}
+.pay-input:focus{border-color:var(--blue);}
+.pay-input::-webkit-outer-spin-button,.pay-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.pay-input[type=number]{-moz-appearance:textfield;}
+.pay-input-wrap{position:relative;display:flex;align-items:center;gap:.5rem;}
+.pay-clear-btn{flex-shrink:0;width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;transition:color .2s,background .2s;}
+.pay-clear-btn:hover{color:var(--red);background:var(--red-dim);}
+
+.change-display{background:var(--green-dim);border:1px solid rgba(63,185,80,.3);border-radius:10px;padding:1rem;text-align:center;display:none;}
+.change-display.show{display:block;}
+.change-label{font-size:.8rem;color:var(--green);margin-bottom:.4rem;}
+.change-amount{font-family:var(--mono);font-size:2rem;font-weight:700;color:var(--green);}
+.checkout-btn{padding:1rem;border-radius:12px;border:none;background:var(--green);color:#000;font-size:1.1rem;font-weight:700;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:opacity .2s,transform .1s;letter-spacing:1px;}
+.checkout-btn:hover:not(:disabled){opacity:.85;transform:translateY(-1px);}
+.checkout-btn:disabled{opacity:.35;cursor:not-allowed;}
+.clear-btn{padding:.75rem;border-radius:10px;border:1px solid rgba(248,81,73,.3);background:transparent;color:var(--red);font-size:.9rem;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:background .2s;}
+.clear-btn:hover{background:rgba(248,81,73,.1);}
+
+/* TOAST */
+.toast{position:fixed;top:5rem;left:50%;transform:translateX(-50%) translateY(-10px);background:#161b22;border:1px solid var(--border);border-radius:10px;padding:.75rem 1.5rem;font-size:.9rem;opacity:0;transition:opacity .3s,transform .3s;z-index:999;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.success{border-color:rgba(63,185,80,.4);color:var(--green);}
+.toast.error{border-color:rgba(248,81,73,.4);color:var(--red);}
+
+/* MODALS */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .3s;}
+.modal-overlay.show{opacity:1;pointer-events:all;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;width:440px;max-width:92vw;transform:scale(.95);transition:transform .3s;}
+.modal-overlay.show .modal{transform:scale(1);}
+.modal-title{font-size:1.1rem;font-weight:700;margin-bottom:1.5rem;display:flex;align-items:center;gap:.5rem;}
+.modal-btn{width:100%;padding:.875rem;border-radius:10px;border:none;background:var(--green);color:#000;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Noto Sans SC',sans-serif;transition:opacity .2s;}
+.modal-btn:hover{opacity:.85;}
+.modal-btn-secondary{width:100%;padding:.75rem;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.9rem;cursor:pointer;font-family:'Noto Sans SC',sans-serif;margin-top:.6rem;transition:background .2s;}
+.modal-btn-secondary:hover{background:var(--surface2);color:var(--text);}
+
+/* RECEIPT */
+.receipt{background:var(--bg);border-radius:10px;padding:1rem;font-family:var(--mono);font-size:.8rem;margin-bottom:1.5rem;}
+.receipt-row{display:flex;justify-content:space-between;padding:.3rem 0;color:var(--muted);}
+.receipt-row.strong{color:var(--text);font-weight:600;}
+.receipt-divider{border:none;border-top:1px dashed rgba(255,255,255,.1);margin:.5rem 0;}
+
+/* FORM */
+.form-group{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem;}
+.form-label{font-size:.8rem;color:var(--muted);}
+.form-input,.form-select{padding:.7rem .9rem;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.9rem;outline:none;transition:border-color .2s;width:100%;}
+.form-input:focus,.form-select:focus{border-color:var(--blue);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.form-actions{display:flex;gap:.75rem;margin-top:1rem;}
+.form-actions .modal-btn{flex:1;}
+.form-actions .modal-btn-secondary{flex:1;margin:0;}
+
+/* NO-CODE MODAL AMOUNTS */
+.amount-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-bottom:1rem;}
+.amount-chip{padding:.65rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:.9rem;font-family:var(--mono);text-align:center;transition:all .2s;}
+.amount-chip:hover{background:var(--blue-dim);border-color:var(--blue);color:var(--blue);}
+.amount-chip.selected{background:var(--blue-dim);border-color:var(--blue);color:var(--blue);}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="/" class="back-btn">← 返回主页</a>
+    <span style="color:rgba(255,255,255,.1)">|</span>
+    <span class="store-name">🏪 便利店收银前台</span>
+  </div>
+  <div class="clock" id="clock">00:00:00</div>
+</div>
+
+<div class="main">
+  <!-- CART PANEL -->
+  <div class="cart-panel">
+    <div class="panel-title">📋 购物清单</div>
+
+    <div class="scan-area" id="scanArea">
+      <span class="scan-icon">📷</span>
+      <input class="scan-input" id="barcodeInput" type="text"
+        placeholder="输入条码 / 商品名称搜索..." autofocus autocomplete="off">
+      <div class="scan-hints">
+        <span class="scan-hint-tag"><kbd>Enter</kbd> 确认条码</span>
+        <span class="scan-hint-tag"><kbd>Space</kbd> 无码商品</span>
+      </div>
+      <!-- Search Dropdown -->
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+
+    <div class="cart-table-wrap" id="cartWrap" style="margin-top:.5rem">
+      <div class="empty-cart" id="emptyCart">
+        <span class="empty-icon">🛒</span>
+        <div>购物车空空如也</div>
+        <div style="font-size:.8rem;margin-top:.5rem;">扫描条码或搜索商品名称开始添加</div>
+      </div>
+      <table class="cart-table" id="cartTable" style="display:none;">
+        <thead>
+          <tr><th>#</th><th>商品</th><th>单价</th><th>数量</th><th>小计</th><th></th></tr>
+        </thead>
+        <tbody id="cartBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PAY PANEL -->
+  <div class="pay-panel">
+    <div class="panel-title">💳 结算</div>
+    <div class="summary-block">
+      <div class="summary-row"><span class="summary-label">商品种数</span><span class="summary-value" id="itemCount">0 种</span></div>
+      <div class="summary-row"><span class="summary-label">商品总数</span><span class="summary-value" id="totalQty">0 件</span></div>
+      <div class="summary-row total-row">
+        <span class="total-label">应付金额</span>
+        <span class="total-value" id="totalAmount">¥0.00</span>
+      </div>
+    </div>
+    <div>
+      <div class="pay-title" style="margin-bottom:.75rem;">快捷金额</div>
+      <div class="quick-btns" id="quickBtns"></div>
+    </div>
+    <div>
+      <label class="pay-input-label">实收金额 (¥)</label>
+      <div class="pay-input-wrap">
+        <input class="pay-input" id="paidInput" type="number" min="0" step="0.01" placeholder="0.00" style="flex:1;">
+        <button class="pay-clear-btn" onclick="clearPaid()" title="清空金额">✕</button>
+      </div>
+    </div>
+    <div class="change-display" id="changeDisplay">
+      <div class="change-label">找零</div>
+      <div class="change-amount" id="changeAmount">¥0.00</div>
+    </div>
+    <button class="checkout-btn" id="checkoutBtn" disabled onclick="checkout()">确认结算</button>
+    <button class="clear-btn" onclick="clearCart()">清空购物车</button>
+  </div>
+</div>
+
+<!-- ===== MODAL: 无码商品 ===== -->
+<div class="modal-overlay" id="noCodeModal">
+  <div class="modal">
+    <div class="modal-title">🏷️ 录入无码商品</div>
+    <div class="form-group">
+      <label class="form-label">金额 (¥)</label>
+      <div class="amount-grid">
+        <div class="amount-chip" onclick="selectAmount(0.5, this)">¥0.5</div>
+        <div class="amount-chip" onclick="selectAmount(1, this)">¥1</div>
+        <div class="amount-chip" onclick="selectAmount(2, this)">¥2</div>
+        <div class="amount-chip" onclick="selectAmount(5, this)">¥5</div>
+        <div class="amount-chip" onclick="selectAmount(10, this)">¥10</div>
+        <div class="amount-chip" onclick="selectAmount(20, this)">¥20</div>
+      </div>
+      <input class="form-input" id="nc-price" type="number" min="0.01" step="0.01" placeholder="或手动输入金额">
+    </div>
+    <div class="form-actions">
+      <button type="button" class="modal-btn-secondary" onclick="closeNoCode()">取消</button>
+      <button type="button" class="modal-btn" onclick="addNoCode()">添加到购物车</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 条码不存在，新增商品 ===== -->
+<div class="modal-overlay" id="addProductModal">
+  <div class="modal">
+    <div class="modal-title">➕ 条码未找到，添加新商品</div>
+    <!-- API 查询状态提示 -->
+    <div id="ap-lookup-status" style="display:none;align-items:center;gap:.6rem;padding:.6rem .9rem;border-radius:8px;margin-bottom:1rem;font-size:.85rem;"></div>
+    <div class="form-group">
+      <label class="form-label">条码</label>
+      <input class="form-input" id="ap-barcode" readonly style="opacity:.6;">
+    </div>
+    <div class="form-group">
+      <label class="form-label">商品名称 *</label>
+      <input class="form-input" id="ap-name" placeholder="请输入商品名称">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">价格 (¥) *</label>
+        <input class="form-input" id="ap-price" type="number" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">库存数量</label>
+        <input class="form-input" id="ap-stock" type="number" min="0" placeholder="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">分类</label>
+      <select class="form-select" id="ap-category">
+        <option value="其他" selected>其他</option>
+        <option>饮料</option><option>零食</option>
+        <option>方便食品</option><option>日用品</option>
+      </select>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="modal-btn-secondary" onclick="closeAddProduct()">取消</button>
+      <button type="button" class="modal-btn" onclick="saveNewProduct()">保存并加入购物车</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 结算小票 ===== -->
+<div class="modal-overlay" id="receiptModal">
+  <div class="modal">
+    <div class="modal-title">✅ 结算成功</div>
+    <div class="receipt" id="receiptContent"></div>
+    <button class="modal-btn" onclick="closeReceipt()">完成，下一单</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const cart = [];
+let searchTimer = null;
+let dropdownIndex = -1;
+let dropdownItems = [];
+
+// ---- Clock ----
+function updateClock(){
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('zh-CN',{hour12:false});
+}
+setInterval(updateClock,1000); updateClock();
+
+// ---- Toast ----
+let toastTimer;
+function showToast(msg,type='success'){
+  const el=document.getElementById('toast');
+  el.textContent=(type==='success'?'✓ ':'✗ ')+msg;
+  el.className='toast show '+type;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{el.className='toast';},2500);
+}
+
+// ============================================================
+// SCAN INPUT — 支持条码、名称搜索、空格触发无码商品
+// ============================================================
+const barcodeInput = document.getElementById('barcodeInput');
+const searchDropdown = document.getElementById('searchDropdown');
+
+barcodeInput.addEventListener('keydown', async e => {
+  // 空格键 → 无码商品弹窗
+  if (e.key === ' ') {
+    const val = barcodeInput.value.trim();
+    if (!val) { // 输入框为空时才触发
+      e.preventDefault();
+      openNoCode();
+      return;
+    }
+  }
+
+  // 上下键操控下拉
+  if (e.key === 'ArrowDown') { e.preventDefault(); moveDropdown(1); return; }
+  if (e.key === 'ArrowUp')   { e.preventDefault(); moveDropdown(-1); return; }
+
+  // ESC 关闭下拉
+  if (e.key === 'Escape') { closeDropdown(); return; }
+
+  // Enter
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    // 如果下拉有高亮项，选中它
+    if (dropdownIndex >= 0 && dropdownItems[dropdownIndex]) {
+      selectDropdownItem(dropdownItems[dropdownIndex]);
+      return;
+    }
+    // 否则按条码查询
+    const barcode = barcodeInput.value.trim();
+    if (!barcode) return;
+    closeDropdown();
+    barcodeInput.value = '';
+    await addByBarcode(barcode);
+  }
+});
+
+barcodeInput.addEventListener('input', () => {
+  const val = barcodeInput.value.trim();
+  clearTimeout(searchTimer);
+  dropdownIndex = -1;
+  if (!val) { closeDropdown(); return; }
+  // 纯数字视为条码，不触发搜索下拉
+  if (/^\d+$/.test(val)) { closeDropdown(); return; }
+  searchTimer = setTimeout(() => searchProducts(val), 200);
+});
+
+barcodeInput.addEventListener('blur', () => {
+  setTimeout(closeDropdown, 180);
+});
+
+async function searchProducts(q) {
+  try {
+    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}`);
+    const list = await res.json();
+    dropdownItems = list.slice(0, 8);
+    renderDropdown();
+  } catch(e) {}
+}
+
+function renderDropdown() {
+  if (!dropdownItems.length) { closeDropdown(); return; }
+  searchDropdown.innerHTML = dropdownItems.map((p, i) => `
+    <div class="search-item ${i===dropdownIndex?'active':''}" onmousedown="selectDropdownItem(dropdownItems[${i}])">
+      <div class="search-item-left">
+        <span class="search-item-name">${p.name}</span>
+        <span class="search-item-barcode">${p.barcode}</span>
+      </div>
+      <div class="search-item-right">
+        <span class="search-item-price">¥${Number(p.price).toFixed(2)}</span>
+        <span class="search-item-stock">库存 ${p.stock}</span>
+      </div>
+    </div>
+  `).join('');
+  searchDropdown.classList.add('show');
+}
+
+function moveDropdown(dir) {
+  if (!dropdownItems.length) return;
+  dropdownIndex = Math.max(-1, Math.min(dropdownItems.length-1, dropdownIndex+dir));
+  renderDropdown();
+}
+
+function selectDropdownItem(p) {
+  closeDropdown();
+  barcodeInput.value = '';
+  addToCart(p);
+}
+
+function closeDropdown() {
+  searchDropdown.classList.remove('show');
+  dropdownIndex = -1;
+}
+
+// ---- 条码查询 ----
+async function addByBarcode(barcode) {
+  try {
+    const res = await fetch(`/api/product/${encodeURIComponent(barcode)}`);
+    if (res.ok) {
+      addToCart(await res.json());
+    } else {
+      // 条码不存在 → 弹出新增商品弹窗
+      openAddProduct(barcode);
+    }
+  } catch(e) { showToast('网络错误','error'); }
+}
+
+// ---- 加入购物车 ----
+function addToCart(product) {
+  const existing = cart.find(i => i.id === product.id);
+  if (existing) { existing.quantity++; }
+  else { cart.push({id:product.id,barcode:product.barcode,name:product.name,price:Number(product.price),quantity:1}); }
+  renderCart();
+  showToast(`已添加：${product.name}`);
+}
+
+// ---- 渲染购物车 ----
+function renderCart() {
+  const body = document.getElementById('cartBody');
+  const empty = document.getElementById('emptyCart');
+  const table = document.getElementById('cartTable');
+  if (cart.length===0){ empty.style.display=''; table.style.display='none'; }
+  else { empty.style.display='none'; table.style.display=''; }
+  let totalQty=0;
+  body.innerHTML='';
+  cart.forEach((item,idx) => {
+    totalQty+=item.quantity;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td style="color:var(--muted);font-family:var(--mono)">${idx+1}</td>
+      <td>
+        <div class="item-name">${item.name}</div>
+        <div class="item-barcode">${item.barcode||'无码商品'}</div>
+      </td>
+      <td class="price-cell">¥${item.price.toFixed(2)}</td>
+      <td><div class="qty-ctrl">
+        <button class="qty-btn" onclick="changeQty(${idx},-1)">−</button>
+        <span class="qty-num">${item.quantity}</span>
+        <button class="qty-btn" onclick="changeQty(${idx},1)">+</button>
+      </div></td>
+      <td class="subtotal">¥${(item.price*item.quantity).toFixed(2)}</td>
+      <td><button class="del-btn" onclick="removeItem(${idx})">✕</button></td>
+    `;
+    body.appendChild(tr);
+  });
+  const total=cart.reduce((s,i)=>s+i.price*i.quantity,0);
+  document.getElementById('itemCount').textContent=cart.length+' 种';
+  document.getElementById('totalQty').textContent=totalQty+' 件';
+  document.getElementById('totalAmount').textContent='¥'+total.toFixed(2);
+  updateQuickBtns(total);
+  updateChange();
+}
+
+function changeQty(idx,delta){ cart[idx].quantity+=delta; if(cart[idx].quantity<=0) cart.splice(idx,1); renderCart(); }
+function removeItem(idx){ cart.splice(idx,1); renderCart(); }
+function clearPaid(){ document.getElementById('paidInput').value=''; updateChange(); document.getElementById('paidInput').focus(); }
+function clearCart(){ cart.length=0; renderCart(); document.getElementById('paidInput').value=''; updateChange(); }
+
+function updateQuickBtns(total){
+  const wrap=document.getElementById('quickBtns');
+  const rounds=[Math.ceil(total),Math.ceil(total/5)*5,Math.ceil(total/10)*10,Math.ceil(total/50)*50];
+  const unique=[...new Set(rounds)].filter(v=>v>=total).slice(0,4);
+  wrap.innerHTML=unique.map(v=>`<button class="quick-btn" onclick="setPaid(${v})">¥${v}</button>`).join('');
+}
+function setPaid(v){ document.getElementById('paidInput').value=v.toFixed(2); updateChange(); }
+
+document.getElementById('paidInput').addEventListener('input',updateChange);
+function updateChange(){
+  const total=cart.reduce((s,i)=>s+i.price*i.quantity,0);
+  const paid=parseFloat(document.getElementById('paidInput').value)||0;
+  const changeEl=document.getElementById('changeDisplay');
+  const btn=document.getElementById('checkoutBtn');
+  // 购物车为空时禁用结算
+  if(cart.length===0){ changeEl.classList.remove('show'); btn.disabled=true; return; }
+  // 有商品时始终允许结算
+  btn.disabled=false;
+  // 有实收金额且足够时显示找零
+  if(paid>0){
+    const change=paid-total;
+    if(change>=0){ document.getElementById('changeAmount').textContent='¥'+change.toFixed(2); changeEl.classList.add('show'); }
+    else { changeEl.classList.remove('show'); }
+  } else {
+    changeEl.classList.remove('show');
+  }
+}
+
+// ============================================================
+// 无码商品弹窗
+// ============================================================
+let noCodeCounter = 0;
+function openNoCode(){
+  document.getElementById('nc-price').value='';
+  document.querySelectorAll('.amount-chip').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('noCodeModal').classList.add('show');
+  setTimeout(()=>document.getElementById('nc-price').focus(),100);
+}
+function closeNoCode(){ document.getElementById('noCodeModal').classList.remove('show'); barcodeInput.focus(); }
+
+function selectAmount(v, el){
+  document.getElementById('nc-price').value=v;
+  document.querySelectorAll('.amount-chip').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function addNoCode(){
+  const price=parseFloat(document.getElementById('nc-price').value);
+  if(!price||price<=0){ showToast('请输入有效金额','error'); return; }
+  noCodeCounter++;
+  cart.push({id:'nocode-'+noCodeCounter,barcode:'',name:'无码商品',price,quantity:1});
+  renderCart();
+  closeNoCode();
+  showToast(`已添加：无码商品 ¥${price.toFixed(2)}`);
+}
+
+// ============================================================
+// 新增商品弹窗（条码不存在时）
+// ============================================================
+async function openAddProduct(barcode){
+  // 重置表单
+  document.getElementById('ap-barcode').value=barcode;
+  document.getElementById('ap-name').value='';
+  document.getElementById('ap-price').value='';
+  document.getElementById('ap-stock').value='';
+  document.getElementById('ap-category').value='其他';
+  // 显示弹窗
+  document.getElementById('addProductModal').classList.add('show');
+  // 显示查询中状态
+  const statusEl=document.getElementById('ap-lookup-status');
+  statusEl.style.display='flex';
+  statusEl.style.background='rgba(88,166,255,.1)';
+  statusEl.style.border='1px solid rgba(88,166,255,.25)';
+  statusEl.style.color='var(--blue)';
+  statusEl.innerHTML='⏳ 正在查询条码信息...';
+  // 调用条码查询API
+  try {
+    const res=await fetch(`/api/barcode-lookup/${encodeURIComponent(barcode)}`);
+    const json=await res.json();
+    if(json.code===200 && json.data && json.data.found){
+      const d=json.data;
+      // 自动填充，保留用户可修改
+      if(d.goods_name) document.getElementById('ap-name').value=d.goods_name;
+      if(d.price)      document.getElementById('ap-price').value=parseFloat(d.price).toFixed(2);
+      if(d.category)   {
+        // 尝试匹配已有分类选项
+        const catMap={'饮料':'饮料','零食':'零食','食品':'零食','方便食品':'方便食品','日用':'日用品','日用品':'日用品'};
+        const matched=Object.keys(catMap).find(k=>d.category.includes(k));
+        if(matched) document.getElementById('ap-category').value=catMap[matched];
+      }
+      statusEl.style.background='rgba(63,185,80,.1)';
+      statusEl.style.border='1px solid rgba(63,185,80,.25)';
+      statusEl.style.color='var(--green)';
+      statusEl.innerHTML='✅ 已自动填充商品信息，请核对后保存';
+      setTimeout(()=>document.getElementById('ap-name').focus(),100);
+    } else {
+      statusEl.style.background='rgba(210,153,34,.1)';
+      statusEl.style.border='1px solid rgba(210,153,34,.25)';
+      statusEl.style.color='var(--yellow)';
+      statusEl.innerHTML='⚠️ 未查询到该条码信息，请手动填写';
+      setTimeout(()=>document.getElementById('ap-name').focus(),100);
+    }
+  } catch(e){
+    statusEl.style.background='rgba(210,153,34,.1)';
+    statusEl.style.border='1px solid rgba(210,153,34,.25)';
+    statusEl.style.color='var(--yellow)';
+    statusEl.innerHTML='⚠️ 查询失败，请手动填写';
+    setTimeout(()=>document.getElementById('ap-name').focus(),100);
+  }
+}
+function closeAddProduct(){ document.getElementById('addProductModal').classList.remove('show'); barcodeInput.focus(); }
+
+async function saveNewProduct(){
+  const barcode=document.getElementById('ap-barcode').value;
+  const name=document.getElementById('ap-name').value.trim();
+  const price=parseFloat(document.getElementById('ap-price').value);
+  const stock=parseInt(document.getElementById('ap-stock').value)||0;
+  const category=document.getElementById('ap-category').value;
+  if(!name){ showToast('请填写商品名称','error'); return; }
+  if(!price||price<=0){ showToast('请填写有效价格','error'); return; }
+  try {
+    const res=await fetch('/api/products',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({barcode,name,price,stock,category})});
+    const data=await res.json();
+    if(!res.ok){ showToast(data.error,'error'); return; }
+    closeAddProduct();
+    showToast('商品已保存');
+    // 加入购物车
+    addToCart({id:data.id,barcode,name,price,stock,category});
+  } catch(e){ showToast('保存失败','error'); }
+}
+
+// ============================================================
+// 结算
+// ============================================================
+async function checkout(){
+  const total=cart.reduce((s,i)=>s+i.price*i.quantity,0);
+  const paidInput=parseFloat(document.getElementById('paidInput').value);
+  // 未输入实收金额则以应付金额作为实收
+  const paid=isNaN(paidInput)||paidInput<=0 ? total : paidInput;
+  if(paid<total){ showToast('付款金额不足','error'); return; }
+  const allItems=cart.map(i=>({id:String(i.id).startsWith('nocode')?null:i.id,name:i.name,price:i.price,quantity:i.quantity}));
+  try {
+    const res=await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({items:allItems,total,paid})});
+    const data=await res.json();
+    if(!res.ok){ showToast(data.error,'error'); return; }
+    showReceipt(allItems,total,paid,data.change,data.transactionId);
+  } catch(e){ showToast('结算失败','error'); }
+}
+
+function showReceipt(items,total,paid,change,txId){
+  const now=new Date().toLocaleString('zh-CN');
+  const rows=items.map(i=>`<div class="receipt-row"><span>${i.name} × ${i.quantity}</span><span>¥${(i.price*i.quantity).toFixed(2)}</span></div>`).join('');
+  document.getElementById('receiptContent').innerHTML=`
+    <div class="receipt-row"><span>单号</span><span>#${txId}</span></div>
+    <div class="receipt-row"><span>时间</span><span>${now}</span></div>
+    <hr class="receipt-divider">${rows}<hr class="receipt-divider">
+    <div class="receipt-row strong"><span>合计</span><span>¥${parseFloat(total).toFixed(2)}</span></div>
+    <div class="receipt-row strong"><span>实收</span><span>¥${parseFloat(paid).toFixed(2)}</span></div>
+    <div class="receipt-row strong" style="color:var(--green)"><span>找零</span><span>¥${parseFloat(change).toFixed(2)}</span></div>
+  `;
+  document.getElementById('receiptModal').classList.add('show');
+}
+
+function closeReceipt(){ document.getElementById('receiptModal').classList.remove('show'); clearCart(); barcodeInput.focus(); }
+</script>
+</body>
+</html>

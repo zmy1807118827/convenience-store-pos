@@ -1,0 +1,13 @@
+{
+  "name": "convenience-store-pos",
+  "version": "1.0.0",
+  "description": "便利店收银系统",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "sql.js": "^1.12.0"
+  }
+}
