@@ -4,13 +4,18 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const https = require('https');
+const { WebSocketServer } = require('ws');
 
 const app = express();
 const PORT = 3000;
-// 优先使用 /app/data 目录（Docker 挂载卷），本地开发时回退到项目根目录
-const DB_FILE = process.env.NODE_ENV === 'production'
-  ? path.join('/app/data', 'store.db')
-  : path.join(__dirname, 'store.db');
+// 数据目录：Docker 生产环境用 /app/data，本地开发用项目根目录
+const DATA_DIR = process.env.NODE_ENV === 'production'
+  ? '/app/data'
+  : __dirname;
+const BASE_DIR = DATA_DIR; // 证书也存这里
+const DB_FILE  = path.join(DATA_DIR, 'store.db');
 
 let db;
 
@@ -81,6 +86,7 @@ function queryOne(sql, params = []) {
 
 // ---- 中间件 ----
 app.use(express.json());
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // =============================================
@@ -270,6 +276,26 @@ app.post('/api/products/import', (req, res) => {
   res.json({ success: true, inserted, updated, errors });
 });
 
+
+// ---- 二维码生成（纯 Node.js，无需第三方库，输出 SVG） ----
+// 基于 QR Code 标准的简化实现，使用 qrcode npm 包
+app.get('/api/qrcode', async (req, res) => {
+  const text = req.query.text || '';
+  try {
+    const QRCode = require('qrcode');
+    const svg = await QRCode.toString(text, {
+      type: 'svg',
+      width: 200,
+      margin: 2,
+      color: { dark: '#000000', light: '#ffffff' }
+    });
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(svg);
+  } catch(e) {
+    res.status(500).send('QR生成失败: ' + e.message);
+  }
+});
+
 // ---- 条码信息查询代理（避免前端跨域） ----
 app.get('/api/barcode-lookup/:barcode', async (req, res) => {
   const { barcode } = req.params;
@@ -285,18 +311,132 @@ app.get('/api/barcode-lookup/:barcode', async (req, res) => {
   }
 });
 
+// ---- 获取本机局域网 IP ----
+function getLocalIP() {
+  const { networkInterfaces } = require('os');
+  const nets = networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
+    }
+  }
+  return 'localhost';
+}
+
+// ---- WebSocket 服务 ----
+// rooms: { roomId: { cashier: ws | null, scanners: Set<ws> } }
+const rooms = {};
+
+function getOrCreateRoom(roomId) {
+  if (!rooms[roomId]) rooms[roomId] = { cashier: null, scanners: new Set() };
+  return rooms[roomId];
+}
+
+// ---- 自签名证书（用于手机 HTTPS 访问摄像头）----
+function getOrCreateCert() {
+  // 本地开发时存到 ./data/，Docker 时 BASE_DIR 本身就是 /app/data
+  const certDir  = process.env.NODE_ENV === 'production' ? BASE_DIR : path.join(__dirname, 'data');
+  if (!fs.existsSync(certDir)) fs.mkdirSync(certDir, { recursive: true });
+  const certFile = path.join(certDir, 'cert.pem');
+  const keyFile  = path.join(certDir, 'key.pem');
+  if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+    return { cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) };
+  }
+  // 用 Node 内置 crypto 生成自签名证书
+  try {
+    const { execSync } = require('child_process');
+    const ip = getLocalIP();
+    // 生成私钥和自签名证书（有效期 10 年）
+    execSync(
+      `openssl req -x509 -newkey rsa:2048 -keyout "${keyFile}" -out "${certFile}" -days 3650 -nodes` +
+      ` -subj "/CN=${ip}" -addext "subjectAltName=IP:${ip},IP:127.0.0.1,DNS:localhost"`,
+      { stdio: 'pipe' }
+    );
+    console.log('✅ 已自动生成 HTTPS 自签名证书');
+    return { cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) };
+  } catch(e) {
+    console.warn('⚠️  openssl 不可用，HTTPS 服务将跳过：', e.message);
+    return null;
+  }
+}
+
+// ---- WS 消息处理（HTTP 和 HTTPS 共用）----
+function setupWSS(server) {
+  const wss = new WebSocketServer({ server, path: '/ws' });
+  wss.on('connection', (ws, req) => {
+    const params = new URLSearchParams(req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '');
+    const role   = params.get('role');
+    const roomId = params.get('room') || 'default';
+    const room   = getOrCreateRoom(roomId);
+
+    if (role === 'cashier') {
+      room.cashier = ws;
+      ws.send(JSON.stringify({ type: 'connected', scanners: room.scanners.size }));
+      if (room.scanners.size > 0) {
+        ws.send(JSON.stringify({ type: 'scanner_joined', scanners: room.scanners.size }));
+      }
+      ws.on('close', () => { if (room.cashier === ws) room.cashier = null; });
+
+    } else if (role === 'scanner') {
+      room.scanners.add(ws);
+      if (room.cashier && room.cashier.readyState === 1) {
+        room.cashier.send(JSON.stringify({ type: 'scanner_joined', scanners: room.scanners.size }));
+      }
+      ws.send(JSON.stringify({ type: 'ready' }));
+      ws.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === 'barcode' && room.cashier && room.cashier.readyState === 1) {
+            room.cashier.send(JSON.stringify({ type: 'barcode', barcode: msg.barcode }));
+            ws.send(JSON.stringify({ type: 'ack', barcode: msg.barcode }));
+          }
+        } catch(e) {}
+      });
+      ws.on('close', () => {
+        room.scanners.delete(ws);
+        if (room.cashier && room.cashier.readyState === 1) {
+          room.cashier.send(JSON.stringify({ type: 'scanner_left', scanners: room.scanners.size }));
+        }
+      });
+    }
+  });
+}
+
 // ---- 启动 ----
 initDB().then(() => {
-  app.listen(PORT, '0.0.0.0', () => {
+  const ip = getLocalIP();
+  const HTTP_PORT  = PORT;        // 3000，电脑访问
+  const HTTPS_PORT = PORT + 1;    // 3001，手机扫码用
+
+  // HTTP 服务（收银台电脑端）
+  const httpServer = http.createServer(app);
+  setupWSS(httpServer);
+  httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
     console.log('');
     console.log('🏪 便利店收银系统已启动！');
     console.log('================================');
-    console.log(`📌 主页:     http://localhost:${PORT}`);
-    console.log(`💰 收银前台: http://localhost:${PORT}/cashier.html`);
-    console.log(`⚙️  管理后台: http://localhost:${PORT}/admin.html`);
+    console.log(`📌 主页:     http://localhost:${HTTP_PORT}`);
+    console.log(`💰 收银前台: http://localhost:${HTTP_PORT}/cashier.html`);
+    console.log(`⚙️  管理后台: http://localhost:${HTTP_PORT}/admin.html`);
+  });
+
+  // HTTPS 服务（手机扫码专用，摄像头需要安全上下文）
+  const sslCreds = getOrCreateCert();
+  if (sslCreds) {
+    const httpsServer = https.createServer(sslCreds, app);
+    setupWSS(httpsServer);
+    httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+      console.log(`📱 手机扫码: https://${ip}:${HTTPS_PORT}/scanner.html`);
+      console.log('   ⚠️  手机首次访问需点击"高级"→"继续访问"接受自签名证书');
+      console.log('================================');
+      console.log('按 Ctrl+C 停止服务');
+    });
+  } else {
+    console.log(`📱 手机扫码: HTTPS 不可用（openssl 未安装）`);
     console.log('================================');
     console.log('按 Ctrl+C 停止服务');
-  });
+  }
+
 }).catch(err => {
   console.error('启动失败:', err);
   process.exit(1);

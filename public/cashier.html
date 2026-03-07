@@ -158,6 +158,43 @@ body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text
 .amount-chip{padding:.65rem;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-size:.9rem;font-family:var(--mono);text-align:center;transition:all .2s;}
 .amount-chip:hover{background:var(--blue-dim);border-color:var(--blue);color:var(--blue);}
 .amount-chip.selected{background:var(--blue-dim);border-color:var(--blue);color:var(--blue);}
+
+/* PHONE CONNECT BUTTON */
+.phone-btn{
+  display:flex;align-items:center;gap:.5rem;
+  padding:.4rem .9rem;border-radius:8px;
+  border:1px solid var(--border);background:var(--surface2);
+  color:var(--muted);font-size:.85rem;cursor:pointer;
+  font-family:'Noto Sans SC',sans-serif;transition:all .2s;
+  white-space:nowrap;
+}
+.phone-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-dim);}
+.phone-btn.scanner-online{border-color:rgba(63,185,80,.4);color:var(--green);background:var(--green-dim);}
+.phone-btn .ph-dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:none;}
+.phone-btn.scanner-online .ph-dot{display:inline-block;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+/* QR MODAL */
+.qr-modal-body{display:flex;flex-direction:column;align-items:center;gap:1.25rem;}
+.qr-box{
+  background:#fff;border-radius:12px;padding:16px;
+  display:flex;align-items:center;justify-content:center;
+}
+.qr-url{
+  font-family:var(--mono);font-size:.78rem;color:var(--muted);
+  word-break:break-all;text-align:center;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:.6rem .875rem;width:100%;
+}
+.qr-hint{font-size:.85rem;color:var(--muted);text-align:center;line-height:1.6;}
+.qr-scanner-status{
+  width:100%;padding:.65rem 1rem;border-radius:8px;
+  background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.25);
+  color:var(--yellow);font-size:.85rem;text-align:center;
+}
+.qr-scanner-status.connected{
+  background:var(--green-dim);border-color:rgba(63,185,80,.3);color:var(--green);
+}
 </style>
 </head>
 <body>
@@ -168,7 +205,13 @@ body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text
     <span style="color:rgba(255,255,255,.1)">|</span>
     <span class="store-name">🏪 便利店收银前台</span>
   </div>
-  <div class="clock" id="clock">00:00:00</div>
+  <div style="display:flex;align-items:center;gap:.75rem;">
+    <button class="phone-btn" id="phoneBtn" onclick="openQRModal()">
+      <span class="ph-dot"></span>
+      <span>📱 连接手机</span>
+    </button>
+    <div class="clock" id="clock">00:00:00</div>
+  </div>
 </div>
 
 <div class="main">
@@ -292,6 +335,27 @@ body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text
     <div class="form-actions">
       <button type="button" class="modal-btn-secondary" onclick="closeAddProduct()">取消</button>
       <button type="button" class="modal-btn" onclick="saveNewProduct()">保存并加入购物车</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: 连接手机 二维码 ===== -->
+<div class="modal-overlay" id="qrModal">
+  <div class="modal">
+    <div class="modal-title">📱 手机扫码连接</div>
+    <div class="qr-modal-body">
+      <div class="qr-scanner-status" id="qrScannerStatus">⏳ 等待手机连接...</div>
+      <div class="qr-box">
+        <img id="qrImg" width="200" height="200" style="display:none;border-radius:8px;" alt="二维码">
+      </div>
+      <div class="qr-url" id="qrUrl">生成中...</div>
+      <div class="qr-hint">
+        手机连接同一 WiFi<br>
+        用手机浏览器扫描上方二维码即可开始扫码
+      </div>
+    </div>
+    <div style="margin-top:1.5rem;">
+      <button type="button" class="modal-btn" onclick="closeQRModal()">关闭</button>
     </div>
   </div>
 </div>
@@ -657,6 +721,107 @@ function showReceipt(items,total,paid,change,txId){
 }
 
 function closeReceipt(){ document.getElementById('receiptModal').classList.remove('show'); clearCart(); barcodeInput.focus(); }
+
+// ============================================================
+// WebSocket —— 接收手机扫码
+// ============================================================
+const ROOM = 'pos1';
+const _wsPort = location.port ? ':' + location.port : '';
+const WS_URL = 'ws://' + location.hostname + _wsPort + '/ws?role=cashier&room=' + ROOM;
+let cashierWS = null;
+let scannerCount = 0;
+
+function connectCashierWS() {
+  console.log('[WS] 正在连接:', WS_URL);
+  try {
+    cashierWS = new WebSocket(WS_URL);
+  } catch(e) {
+    console.error('[WS] 创建失败:', e);
+    setTimeout(connectCashierWS, 5000);
+    return;
+  }
+
+  cashierWS.onopen = function() {
+    console.log('[WS] 收银台已连接成功');
+  };
+
+  cashierWS.onmessage = async function(e) {
+    console.log('[WS] 收到消息:', e.data);
+    let msg;
+    try { msg = JSON.parse(e.data); } catch(err) { return; }
+    if (msg.type === 'barcode') {
+      showToast('📱 手机扫码：' + msg.barcode);
+      await addByBarcode(msg.barcode);
+    } else if (msg.type === 'scanner_joined') {
+      scannerCount = msg.scanners;
+      updatePhoneBtn();
+      showToast('📱 手机已连接，可以开始扫码');
+    } else if (msg.type === 'scanner_left') {
+      scannerCount = msg.scanners;
+      updatePhoneBtn();
+    } else if (msg.type === 'connected') {
+      // 收银台连上时，若已有手机在线
+      if (msg.scanners > 0) {
+        scannerCount = msg.scanners;
+        updatePhoneBtn();
+      }
+    }
+  };
+
+  cashierWS.onerror = function(e) {
+    console.error('[WS] 连接错误:', e);
+  };
+
+  cashierWS.onclose = function(e) {
+    console.warn('[WS] 连接断开, code:', e.code, 'reason:', e.reason);
+    scannerCount = 0;
+    updatePhoneBtn();
+    setTimeout(connectCashierWS, 5000);
+  };
+}
+
+function updatePhoneBtn() {
+  const btn = document.getElementById('phoneBtn');
+  const span = btn.querySelector('span:last-child');
+  const dot  = btn.querySelector('.ph-dot');
+  if (scannerCount > 0) {
+    btn.classList.add('scanner-online');
+    span.textContent = '📱 已连接 ' + scannerCount + ' 台';
+    dot.style.display = 'inline-block';
+    const st = document.getElementById('qrScannerStatus');
+    if (st) { st.className='qr-scanner-status connected'; st.textContent='✅ 已有 '+scannerCount+' 台手机连接'; }
+  } else {
+    btn.classList.remove('scanner-online');
+    span.textContent = '📱 连接手机';
+    dot.style.display = 'none';
+    const st = document.getElementById('qrScannerStatus');
+    if (st) { st.className='qr-scanner-status'; st.textContent='⏳ 等待手机连接...'; }
+  }
+}
+
+// 启动 WS
+connectCashierWS();
+
+// ============================================================
+// 二维码弹窗
+// ============================================================
+function openQRModal() {
+  const httpPort  = location.port ? parseInt(location.port) : 80;
+  const httpsPort = httpPort + 1;  // HTTPS 端口 = HTTP 端口 + 1
+  const scannerURL = 'https://' + location.hostname + ':' + httpsPort + '/scanner.html?room=' + ROOM;
+  document.getElementById('qrUrl').textContent = scannerURL;
+  updatePhoneBtn();
+  document.getElementById('qrModal').classList.add('show');
+  // 让后端生成二维码图片（SVG），无需前端库
+  const img = document.getElementById('qrImg');
+  img.src = '/api/qrcode?text=' + encodeURIComponent(scannerURL);
+  img.style.display = 'block';
+}
+
+function closeQRModal() {
+  document.getElementById('qrModal').classList.remove('show');
+}
+
 </script>
 </body>
 </html>

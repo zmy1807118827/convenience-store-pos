@@ -1,22 +1,19 @@
-# 使用官方 Node.js LTS 轻量镜像
 FROM node:20-alpine
 
-# 设置工作目录
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
-# 先复制依赖文件（利用 Docker 层缓存，依赖不变时不重新安装）
 COPY package*.json ./
-RUN npm install --omit=dev
-
-# 复制项目文件
-COPY server.js ./
+# postinstall 需要 public 目录存在，所以提前复制
 COPY public ./public
 
-# 创建数据目录（用于挂载持久化数据库）
+RUN npm install --omit=dev
+
+COPY server.js ./
+
 RUN mkdir -p /app/data
 
-# 暴露端口
-EXPOSE 3000
+EXPOSE 3000 3001
 
-# 启动服务
 CMD ["node", "server.js"]

@@ -4,10 +4,28 @@
   "description": "便利店收银系统",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:exe": "pkg server-exe.js --target node18-win-x64 --output dist/convenience-store.exe",
+    "postinstall": "node -e \"const fs=require('fs'),path=require('path');const pub=path.join(__dirname,'public');const zxingSrc=path.join(__dirname,'node_modules/@zxing/library/umd/index.min.js');if(fs.existsSync(zxingSrc)){fs.copyFileSync(zxingSrc,path.join(pub,'zxing.min.js'));console.log('✅ zxing.min.js 已复制到 public/');}else{console.log('⚠️  zxing 未找到');}const qrSrc=path.join(__dirname,'node_modules/qrcode/build/qrcode.min.js');if(fs.existsSync(qrSrc)){fs.copyFileSync(qrSrc,path.join(pub,'qrcode.min.js'));console.log('✅ qrcode.min.js 已复制到 public/');}else{console.log('⚠️  qrcode 未找到');}\""
   },
   "dependencies": {
     "express": "^4.18.2",
-    "sql.js": "^1.12.0"
+    "sql.js": "^1.12.0",
+    "ws": "^8.16.0",
+    "@zxing/library": "^0.19.1",
+    "qrcode": "^1.5.3"
+  },
+  "pkg": {
+    "scripts": [
+      "server-exe.js"
+    ],
+    "assets": [
+      "public/**/*",
+      "node_modules/sql.js/dist/sql-wasm.wasm"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
   }
 }

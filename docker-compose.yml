@@ -7,7 +7,8 @@ services:
     container_name: convenience-store
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3008:3000"
+      - "3009:3001"   # HTTPS，手机扫码专用
     volumes:
       - ./data:/app/data
     environment:
