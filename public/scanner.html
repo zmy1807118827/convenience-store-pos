@@ -252,8 +252,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
       <label class="form-label">分类</label>
       <select class="form-select" id="ci-category">
         <option value="其他">其他</option>
-        <option>饮料</option><option>零食</option>
-        <option>方便食品</option><option>日用品</option>
       </select>
     </div>
     <div class="sheet-btns">
@@ -629,6 +627,13 @@ function togglePause() {
     setStatus('','🎯','将摄像头对准商品条码');
   }
 }
+
+// 加载分类到 scanner 表单
+fetch('/api/categories').then(r=>r.json()).then(cats=>{
+  const sel = document.getElementById('ci-category');
+  if(!cats.length) return;
+  sel.innerHTML = cats.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+}).catch(()=>{});
 
 connectWS();
 </script>

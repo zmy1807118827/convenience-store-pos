@@ -24,6 +24,11 @@ body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text
 .back-btn:hover{color:var(--text);}
 .store-name{font-weight:700;font-size:1rem;}
 .clock{font-family:var(--mono);font-size:.9rem;color:var(--green);background:var(--green-dim);padding:.3rem .75rem;border-radius:6px;}
+.weather-widget{display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--muted);padding:.3rem .75rem;border-radius:6px;background:var(--surface2);border:1px solid var(--border);transition:opacity .3s;}
+.weather-widget.loading{opacity:.5;}
+.weather-icon{font-size:1rem;}
+.weather-text{color:var(--text);}
+.weather-temp{font-family:var(--mono);color:var(--blue);font-weight:600;}
 
 .main{display:flex;flex:1;gap:0;}
 
@@ -203,7 +208,11 @@ body{font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text
   <div class="topbar-left">
     <a href="/" class="back-btn">← 返回主页</a>
     <span style="color:rgba(255,255,255,.1)">|</span>
-    <span class="store-name">🏪 便利店收银前台</span>
+    <span class="store-name" id="storeName">🏪 便利店收银前台</span>
+  </div>
+  <div class="weather-widget loading" id="weatherWidget">
+    <span class="weather-icon" id="weatherIcon">🌤</span>
+    <span class="weather-text" id="weatherText">获取天气...</span>
   </div>
   <div style="display:flex;align-items:center;gap:.75rem;">
     <button class="phone-btn" id="phoneBtn" onclick="openQRModal()">
@@ -799,8 +808,49 @@ function updatePhoneBtn() {
   }
 }
 
+// ============================================================
+// 天气
+// ============================================================
+const WEATHER_ICONS = {
+  '0':'☀️','1':'☀️','2':'⛅','3':'⛅','4':'🌥','5':'🌬','6':'🌫','7':'🌫','8':'🌫','9':'🌧',
+  '10':'🌧','11':'🌧','12':'🌧','13':'🌦','14':'🌦','15':'⛈','16':'⛈','17':'⛈','18':'🌧',
+  '19':'🌨','20':'🌨','21':'❄️','22':'❄️','23':'🌨','24':'🌨','25':'🌨','26':'🌧','27':'🌨',
+  '28':'🌧','29':'🌫','30':'🌬','31':'🌬','32':'🌪','33':'🌪','38':'⛅','99':'🌡'
+};
+
+async function loadWeather(){
+  try{
+    const res = await fetch('/api/weather');
+    if(!res.ok) throw new Error('failed');
+    const data = await res.json();
+    const loc  = data.results[0].location.name;
+    const now  = data.results[0].now;
+    const icon = WEATHER_ICONS[now.code] || '🌡';
+    const widget = document.getElementById('weatherWidget');
+    document.getElementById('weatherIcon').textContent = icon;
+    document.getElementById('weatherText').innerHTML =
+      `<span style="color:var(--muted)">${loc}</span>&nbsp;` +
+      `<span class="weather-text">${now.text}</span>&nbsp;` +
+      `<span class="weather-temp">${now.temperature}°C</span>`;
+    widget.classList.remove('loading');
+  } catch(e){
+    document.getElementById('weatherText').textContent = '天气获取失败';
+  }
+}
+
+loadWeather();
+setInterval(loadWeather, 60 * 60 * 1000); // 每小时更新一次
+
 // 启动 WS
 connectCashierWS();
+
+// 加载店铺名称
+fetch('/api/settings').then(r=>r.json()).then(s=>{
+  if(s.cashier_title){
+    document.getElementById('storeName').textContent = '🏪 ' + s.cashier_title;
+    document.title = s.cashier_title;
+  }
+}).catch(()=>{});
 
 // ============================================================
 // 二维码弹窗

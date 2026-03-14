@@ -47,6 +47,30 @@ async function initDB() {
     created_at TEXT DEFAULT (datetime('now','localtime'))
   )`);
 
+  db.run(`CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    sort_order INTEGER DEFAULT 0
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`);
+
+  // 初始化默认分类
+  const catCount = db.exec('SELECT COUNT(*) FROM categories')[0].values[0][0];
+  if (catCount === 0) {
+    ['饮料','零食','方便食品','日用品','其他'].forEach((name, i) => {
+      db.run('INSERT OR IGNORE INTO categories (name, sort_order) VALUES (?,?)', [name, i]);
+    });
+  }
+
+  // 初始化默认设置
+  db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('cashier_title', '便利店收银前台')`);
+  db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('last_backup', '')`);
+
+
   const count = db.exec('SELECT COUNT(*) FROM products')[0].values[0][0];
   if (count === 0) {
     const samples = [
@@ -277,6 +301,87 @@ app.post('/api/products/import', (req, res) => {
 });
 
 
+// =============================================
+// 分类管理 API
+// =============================================
+app.get('/api/categories', (req, res) => {
+  const cats = queryAll('SELECT c.*, COUNT(p.id) as product_count FROM categories c LEFT JOIN products p ON p.category = c.name GROUP BY c.id ORDER BY c.sort_order, c.id');
+  res.json(cats);
+});
+
+app.post('/api/categories', (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: '分类名称不能为空' });
+  try {
+    db.run('INSERT INTO categories (name, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM categories))', [name.trim()]);
+    saveDB();
+    res.json({ success: true });
+  } catch(e) {
+    if (e.message.includes('UNIQUE')) return res.status(409).json({ error: '分类已存在' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/categories/:name', (req, res) => {
+  const name = decodeURIComponent(req.params.name);
+  const count = queryOne('SELECT COUNT(*) as c FROM products WHERE category = ?', [name]).c;
+  if (count > 0) return res.status(400).json({ error: `该分类下还有 ${count} 个商品，请先移除商品或更改商品分类` });
+  db.run('DELETE FROM categories WHERE name = ?', [name]);
+  saveDB();
+  res.json({ success: true });
+});
+
+// =============================================
+// 系统设置 API
+// =============================================
+app.get('/api/settings', (req, res) => {
+  const rows = queryAll('SELECT key, value FROM settings');
+  const obj = {};
+  rows.forEach(r => obj[r.key] = r.value);
+  res.json(obj);
+});
+
+app.post('/api/settings', (req, res) => {
+  const { key, value } = req.body;
+  if (!key) return res.status(400).json({ error: '缺少 key' });
+  db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', [key, value ?? '']);
+  saveDB();
+  res.json({ success: true });
+});
+
+// =============================================
+// 数据备份 API
+// =============================================
+app.get('/api/backup/download', (req, res) => {
+  // 更新最后备份时间
+  const now = new Date().toLocaleString('zh-CN');
+  db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', ['last_backup', now]);
+  saveDB();
+  const dbBuf = Buffer.from(db.export());
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="store_backup_${Date.now()}.db"`);
+  res.send(dbBuf);
+});
+
+app.post('/api/backup/restore', express.raw({ type: 'application/octet-stream', limit: '100mb' }), async (req, res) => {
+  try {
+    const buf = req.body;
+    if (!buf || buf.length < 100) return res.status(400).json({ error: '文件无效' });
+    // 验证是否为合法 SQLite 文件（前16字节为 "SQLite format 3\0"）
+    const header = buf.slice(0, 16).toString('utf8');
+    if (!header.startsWith('SQLite format 3')) return res.status(400).json({ error: '不是有效的 SQLite 数据库文件' });
+    // 写入磁盘
+    fs.writeFileSync(DB_FILE, buf);
+    // 重新加载内存数据库
+    const initSqlJs = require('sql.js');
+    const SQL = await initSqlJs();
+    db = new SQL.Database(buf);
+    res.json({ success: true, msg: '数据库已恢复，请刷新页面' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ---- 二维码生成（纯 Node.js，无需第三方库，输出 SVG） ----
 // 基于 QR Code 标准的简化实现，使用 qrcode npm 包
 app.get('/api/qrcode', async (req, res) => {
@@ -293,6 +398,28 @@ app.get('/api/qrcode', async (req, res) => {
     res.send(svg);
   } catch(e) {
     res.status(500).send('QR生成失败: ' + e.message);
+  }
+});
+
+// ---- 天气代理（服务端缓存1小时，避免前端跨域）----
+let weatherCache = null;
+let weatherCacheTime = 0;
+
+app.get('/api/weather', async (req, res) => {
+  const now = Date.now();
+  if (weatherCache && now - weatherCacheTime < 60 * 60 * 1000) {
+    return res.json(weatherCache);
+  }
+  try {
+    const url = 'https://api.seniverse.com/v3/weather/now.json?key=S9uUPub7Tng9Ekcbm&location=ip&language=zh-Hans&unit=c';
+    const response = await fetch(url);
+    const data = await response.json();
+    weatherCache = data;
+    weatherCacheTime = now;
+    res.json(data);
+  } catch(e) {
+    if (weatherCache) return res.json(weatherCache); // 失败时返回旧缓存
+    res.status(502).json({ error: '天气获取失败' });
   }
 });
 

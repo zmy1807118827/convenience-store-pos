@@ -172,6 +172,14 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue);cursor:poin
 .mini-modal-actions{display:flex;gap:.75rem;margin-top:1rem;}
 .mini-modal-actions .btn-primary{flex:1;justify-content:center;}
 .mini-modal-actions .btn-secondary{flex:1;justify-content:center;}
+
+/* SETTINGS */
+.settings-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1.25rem;}
+.settings-card-title{font-size:.95rem;font-weight:700;margin-bottom:.35rem;}
+.settings-card-desc{font-size:.82rem;color:var(--muted);margin-bottom:1rem;line-height:1.6;}
+.settings-card-desc code{background:var(--surface2);padding:.1rem .4rem;border-radius:4px;font-size:.8rem;color:var(--blue);}
+.settings-row{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;}
+.settings-info-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.9rem;}
 </style>
 </head>
 <body>
@@ -185,9 +193,11 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue);cursor:poin
   <div class="sidebar">
     <div class="nav-item active" onclick="switchTab('dashboard')" id="nav-dashboard"><span class="nav-icon">📊</span> 数据概览</div>
     <div class="nav-item" onclick="switchTab('products')" id="nav-products"><span class="nav-icon">📦</span> 商品管理</div>
+    <div class="nav-item" onclick="switchTab('categories')" id="nav-categories"><span class="nav-icon">🏷️</span> 分类管理</div>
     <div class="nav-item" onclick="switchTab('import')" id="nav-import"><span class="nav-icon">📂</span> 导入导出</div>
     <div class="nav-item" onclick="switchTab('transactions')" id="nav-transactions"><span class="nav-icon">🧾</span> 交易记录</div>
     <div class="sidebar-divider"></div>
+    <div class="nav-item" onclick="switchTab('settings')" id="nav-settings"><span class="nav-icon">⚙️</span> 系统设置</div>
     <div class="nav-item" onclick="window.open('/cashier.html','_blank')" style="color:var(--green)"><span class="nav-icon">💰</span> 前往收银台</div>
   </div>
 
@@ -218,7 +228,6 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue);cursor:poin
           <input class="search-input" id="searchInput" placeholder="搜索名称或条码..." oninput="loadProducts()">
           <select class="filter-select" id="catFilter" onchange="loadProducts()">
             <option value="全部">全部分类</option>
-            <option>饮料</option><option>零食</option><option>方便食品</option><option>日用品</option><option>其他</option>
           </select>
           <button class="btn-primary" onclick="openAddModal()">+ 新增商品</button>
         </div>
@@ -304,6 +313,54 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue);cursor:poin
       </div>
     </div>
 
+    <!-- CATEGORIES -->
+    <div class="tab-pane" id="tab-categories">
+      <div class="section-header">
+        <span class="section-title">分类管理</span>
+        <div class="header-actions">
+          <input class="search-input" id="newCatInput" placeholder="新分类名称..." style="width:160px" onkeydown="if(event.key==='Enter')addCategory()">
+          <button class="btn-primary" onclick="addCategory()">+ 添加分类</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>分类名称</th><th>商品数量</th><th>操作</th></tr></thead>
+          <tbody id="catBody"><tr><td colspan="3"><div class="empty-state"><span class="ei">⏳</span>加载中...</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="tab-pane" id="tab-settings">
+      <div class="section-header"><span class="section-title">系统设置</span></div>
+
+      <!-- 收银台标题设置 -->
+      <div class="settings-card">
+        <div class="settings-card-title">💰 收银前台显示名称</div>
+        <div class="settings-card-desc">收银台顶部显示的店铺名称</div>
+        <div class="settings-row">
+          <input class="form-input" id="cashierTitleInput" placeholder="便利店收银前台" style="max-width:300px">
+          <button class="btn-primary" onclick="saveCashierTitle()">保存</button>
+        </div>
+      </div>
+
+      <!-- 数据备份 -->
+      <div class="settings-card">
+        <div class="settings-card-title">💾 数据备份与恢复</div>
+        <div class="settings-card-desc">备份或恢复数据库文件 <code>store.db</code>，包含所有商品、交易及分类数据</div>
+        <div class="settings-info-row">
+          <span style="color:var(--muted);font-size:.85rem">上次备份时间：</span>
+          <span id="lastBackupTime" style="font-size:.85rem;color:var(--text)">—</span>
+        </div>
+        <div class="settings-row" style="flex-wrap:wrap;gap:.75rem">
+          <button class="btn-green" onclick="downloadBackup()">⬇ 立即备份</button>
+          <button class="btn-secondary" onclick="document.getElementById('restoreFileInput').click()">⬆ 上传备份</button>
+          <input type="file" id="restoreFileInput" accept=".db" style="display:none" onchange="restoreBackup(this)">
+        </div>
+        <div id="restoreStatus" style="display:none;margin-top:.75rem;padding:.65rem .9rem;border-radius:8px;font-size:.85rem;"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -335,7 +392,6 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--blue);cursor:poin
         <label class="form-label">分类</label>
         <select class="form-select" id="f-category">
           <option value="其他" selected>其他</option>
-          <option>饮料</option><option>零食</option><option>方便食品</option><option>日用品</option>
         </select>
       </div>
     </div>
@@ -398,10 +454,13 @@ function switchTab(name){
   document.querySelectorAll('.tab-pane').forEach(e=>e.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
-  document.getElementById('nav-'+name).classList.add('active');
+  const navEl=document.getElementById('nav-'+name);
+  if(navEl) navEl.classList.add('active');
   if(name==='dashboard'){loadStats();loadDashTx();}
   if(name==='products')loadProducts();
   if(name==='transactions')loadTransactions();
+  if(name==='categories')loadCategories();
+  if(name==='settings')loadSettings();
 }
 
 // ---- Dashboard ----
@@ -797,7 +856,131 @@ async function batchSetPrice(){
 }
 
 // ---- Init ----
-loadStats(); loadDashTx();
+loadStats(); loadDashTx(); loadCategories();
+
+// ============================================================
+// 分类管理
+// ============================================================
+async function loadCategories(){
+  const cats = await fetch('/api/categories').then(r=>r.json());
+  const body = document.getElementById('catBody');
+  if(!cats.length){
+    body.innerHTML='<tr><td colspan="3"><div class="empty-state"><span class="ei">🏷️</span>暂无分类</div></td></tr>';
+    return;
+  }
+  const PROTECTED = ['其他']; // 内置分类不允许删除
+  body.innerHTML = cats.map(cat => `
+    <tr>
+      <td><strong>${cat.name}</strong></td>
+      <td><span class="badge badge-blue">${cat.product_count} 个商品</span></td>
+      <td>
+        ${PROTECTED.includes(cat.name)
+          ? '<span style="font-size:.8rem;color:var(--muted)">内置</span>'
+          : `<button class="btn-danger" onclick="deleteCategory('${cat.name.replace(/'/g,"\'")}',${cat.product_count})">删除</button>`
+        }
+      </td>
+    </tr>
+  `).join('');
+  // 同步更新所有下拉框
+  refreshCategorySelects(cats.map(c=>c.name));
+}
+
+async function addCategory(){
+  const input = document.getElementById('newCatInput');
+  const name = input.value.trim();
+  if(!name){input.focus();return;}
+  const res = await fetch('/api/categories',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  const data = await res.json();
+  if(!res.ok){showToast(data.error,'error');return;}
+  input.value='';
+  showToast(`分类「${name}」已添加`);
+  loadCategories();
+}
+
+async function deleteCategory(name, count){
+  if(count > 0){
+    showToast(`该分类下有 ${count} 个商品，请先移除商品后再删除分类`, 'error');
+    return;
+  }
+  if(!confirm(`确认删除分类「${name}」？`))return;
+  const res = await fetch(`/api/categories/${encodeURIComponent(name)}`,{method:'DELETE'});
+  const data = await res.json();
+  if(!res.ok){showToast(data.error,'error');return;}
+  showToast(`分类「${name}」已删除`);
+  loadCategories();
+}
+
+function refreshCategorySelects(names){
+  // 更新商品管理筛选下拉
+  const catFilter = document.getElementById('catFilter');
+  const currentFilter = catFilter.value;
+  catFilter.innerHTML = '<option value="全部">全部分类</option>' + names.map(n=>`<option${n===currentFilter?' selected':''}>${n}</option>`).join('');
+
+  // 更新新增/编辑商品的分类下拉
+  const fCat = document.getElementById('f-category');
+  const currentCat = fCat.value;
+  fCat.innerHTML = names.map(n=>`<option value="${n}"${n===currentCat?' selected':''}>${n}</option>`).join('');
+}
+
+// ============================================================
+// 系统设置
+// ============================================================
+async function loadSettings(){
+  const settings = await fetch('/api/settings').then(r=>r.json());
+  document.getElementById('cashierTitleInput').value = settings.cashier_title || '';
+  document.getElementById('lastBackupTime').textContent = settings.last_backup || '从未备份';
+}
+
+async function saveCashierTitle(){
+  const value = document.getElementById('cashierTitleInput').value.trim();
+  if(!value){showToast('名称不能为空','error');return;}
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:'cashier_title',value})});
+  showToast('收银台名称已保存，刷新收银台页面生效');
+}
+
+async function downloadBackup(){
+  // 触发下载
+  const a = document.createElement('a');
+  a.href = '/api/backup/download';
+  const date = new Date().toLocaleDateString('zh-CN').replace(/\//g,'-');
+  a.download = `store_backup_${date}.db`;
+  a.click();
+  // 更新显示时间
+  setTimeout(loadSettings, 1000);
+  showToast('数据库备份已开始下载');
+}
+
+async function restoreBackup(input){
+  const file = input.files[0];
+  if(!file) return;
+  if(!file.name.endsWith('.db')){showToast('请选择 .db 文件','error');input.value='';return;}
+  if(!confirm(`⚠️ 确认用「${file.name}」覆盖当前数据库？
+所有现有数据将被替换，此操作不可撤销！`)){input.value='';return;}
+
+  const statusEl = document.getElementById('restoreStatus');
+  statusEl.style.display='block';
+  statusEl.style.cssText='display:block;margin-top:.75rem;padding:.65rem .9rem;border-radius:8px;font-size:.85rem;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.25);color:var(--blue)';
+  statusEl.textContent='⏳ 正在上传并恢复数据库...';
+
+  try{
+    const buf = await file.arrayBuffer();
+    const res = await fetch('/api/backup/restore',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:buf});
+    const data = await res.json();
+    if(res.ok){
+      statusEl.style.cssText='display:block;margin-top:.75rem;padding:.65rem .9rem;border-radius:8px;font-size:.85rem;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.25);color:var(--green)';
+      statusEl.textContent='✅ ' + data.msg;
+      showToast('数据库已恢复');
+      setTimeout(()=>location.reload(), 1500);
+    } else {
+      statusEl.style.cssText='display:block;margin-top:.75rem;padding:.65rem .9rem;border-radius:8px;font-size:.85rem;background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);color:var(--red)';
+      statusEl.textContent='❌ ' + data.error;
+    }
+  } catch(e){
+    statusEl.textContent='❌ 上传失败：' + e.message;
+  }
+  input.value='';
+}
+
 </script>
 </body>
 </html>
