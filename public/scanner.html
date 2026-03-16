@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>手机扫码 — 便利店系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+:root{
+  --bg:#0f1117;--surface:#161b22;--surface2:#1c2330;
+  --border:rgba(255,255,255,.1);
+  --green:#3fb950;--green-dim:rgba(63,185,80,.15);
+  --blue:#58a6ff;--blue-dim:rgba(88,166,255,.12);
+  --red:#f85149;--red-dim:rgba(248,81,73,.1);
+  --yellow:#d29922;--yellow-dim:rgba(210,153,34,.12);
+  --text:#e6edf3;--muted:#8b949e;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;}
+
+/* ── TOPBAR ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;
+  padding:.7rem 1.1rem;background:var(--surface);
+  border-bottom:1px solid var(--border);
+  position:fixed;top:0;left:0;right:0;z-index:100;height:50px;}
+.topbar-title{font-weight:700;font-size:.95rem;}
+.conn-badge{display:flex;align-items:center;gap:.35rem;font-size:.78rem;
+  padding:.25rem .65rem;border-radius:20px;
+  background:rgba(210,153,34,.15);color:var(--yellow);
+  border:1px solid rgba(210,153,34,.3);transition:all .3s;}
+.conn-badge.ok{background:var(--green-dim);color:var(--green);border-color:rgba(63,185,80,.3);}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.pulse{animation:pulse 1.4s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+
+/* ── PAGES ── */
+.page{position:fixed;top:50px;bottom:0;left:0;right:0;display:none;flex-direction:column;overflow-y:auto;}
+.page.active{display:flex;}
+
+/* ── 选择模式页 ── */
+.mode-page{align-items:center;justify-content:center;gap:1.25rem;padding:2rem;}
+.mode-title{font-size:1.1rem;font-weight:700;text-align:center;}
+.mode-sub{font-size:.85rem;color:var(--muted);text-align:center;line-height:1.6;}
+.conn-info{font-size:.8rem;color:var(--muted);text-align:center;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:8px;padding:.6rem 1rem;width:100%;max-width:300px;}
+.conn-info b{color:var(--blue);}
+.err-box{display:none;width:100%;max-width:300px;padding:.75rem 1rem;
+  background:var(--red-dim);border:1px solid rgba(248,81,73,.3);
+  border-radius:8px;font-size:.82rem;color:var(--red);text-align:center;line-height:1.6;}
+.err-box.show{display:block;}
+.mode-cards{display:flex;flex-direction:column;gap:.85rem;width:100%;max-width:300px;}
+.mode-card{
+  padding:1.1rem 1.25rem;border-radius:14px;border:1px solid var(--border);
+  background:var(--surface);cursor:pointer;text-align:left;
+  transition:border-color .2s,background .2s;
+}
+.mode-card:active{opacity:.75;}
+.mode-card.cashier-card{border-color:rgba(63,185,80,.35);background:var(--green-dim);}
+.mode-card.entry-card{border-color:rgba(88,166,255,.35);background:var(--blue-dim);}
+.mode-card-icon{font-size:1.6rem;margin-bottom:.4rem;}
+.mode-card-title{font-size:1rem;font-weight:700;margin-bottom:.2rem;}
+.mode-card-desc{font-size:.8rem;color:var(--muted);line-height:1.5;}
+.mode-card.cashier-card .mode-card-title{color:var(--green);}
+.mode-card.entry-card .mode-card-title{color:var(--blue);}
+
+/* ── 扫码页（收银 & 录入共用） ── */
+.scan-page{flex-direction:column;overflow:hidden;}
+.video-wrap{flex:1;position:relative;overflow:hidden;background:#000;}
+#video{width:100%;height:100%;object-fit:cover;display:block;}
+.mask{position:absolute;background:rgba(0,0,0,.52);pointer-events:none;}
+.mask.top{top:0;left:0;right:0;height:calc(50% - 40px);}
+.mask.bottom{bottom:0;left:0;right:0;height:calc(50% - 40px);}
+.mask.left{top:calc(50% - 40px);bottom:calc(50% - 40px);left:0;width:calc(19% - 1px);}
+.mask.right{top:calc(50% - 40px);bottom:calc(50% - 40px);right:0;width:calc(19% - 1px);}
+.scan-frame{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:62%;aspect-ratio:1.8;pointer-events:none;}
+.corner{position:absolute;width:22px;height:22px;border-color:var(--green);border-style:solid;}
+.corner.tl{top:0;left:0;border-width:3px 0 0 3px;border-radius:3px 0 0 0;}
+.corner.tr{top:0;right:0;border-width:3px 3px 0 0;border-radius:0 3px 0 0;}
+.corner.bl{bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 3px;}
+.corner.br{bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 3px 0;}
+/* 录入模式下扫描框变蓝 */
+.mode-entry .corner{border-color:var(--blue);}
+.mode-entry .scan-line{background:linear-gradient(90deg,transparent,var(--blue),transparent);box-shadow:0 0 6px var(--blue);}
+.scan-line{position:absolute;left:8%;right:8%;height:2px;
+  background:linear-gradient(90deg,transparent,var(--green),transparent);
+  box-shadow:0 0 6px var(--green);
+  animation:scanline 2s ease-in-out infinite;top:50%;}
+@keyframes scanline{
+  0%{transform:translateY(-50px);opacity:0;}
+  10%{opacity:1;}90%{opacity:1;}
+  100%{transform:translateY(50px);opacity:0;}}
+/* 模式标签 */
+.mode-tag{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  font-size:.75rem;font-weight:700;padding:.25rem .75rem;border-radius:20px;
+  background:rgba(63,185,80,.85);color:#000;letter-spacing:.05em;
+}
+.mode-entry .mode-tag{background:rgba(88,166,255,.9);color:#000;}
+
+/* ── BOTTOM PANEL ── */
+.bottom-panel{background:var(--surface);border-top:1px solid var(--border);
+  padding:.9rem 1.1rem;padding-bottom:calc(.9rem + env(safe-area-inset-bottom));flex-shrink:0;}
+.status-row{display:flex;align-items:center;gap:.65rem;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:9px;padding:.65rem .9rem;margin-bottom:.75rem;min-height:46px;
+  transition:border-color .3s,background .3s;}
+.status-row.ok{background:var(--green-dim);border-color:rgba(63,185,80,.35);}
+.status-row.ok .stext{color:var(--green);}
+.status-row.warn{background:var(--yellow-dim);border-color:rgba(210,153,34,.35);}
+.status-row.warn .stext{color:var(--yellow);}
+.status-row.err{background:var(--red-dim);border-color:rgba(248,81,73,.3);}
+.status-row.err .stext{color:var(--red);}
+.sicon{font-size:1.1rem;flex-shrink:0;}
+.stext{font-size:.875rem;flex:1;line-height:1.4;}
+.recent-list{display:flex;flex-direction:column;gap:.35rem;max-height:90px;overflow-y:auto;margin-bottom:.75rem;}
+.ri{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface2);border-radius:7px;padding:.4rem .7rem;border:1px solid var(--border);}
+.ri-bc{font-family:monospace;font-size:.8rem;color:var(--muted);}
+.ri-t{font-size:.72rem;color:var(--muted);}
+.ri-ok{font-size:.75rem;color:var(--green);}
+.btn-row{display:flex;gap:.65rem;}
+.btn{flex:1;padding:.8rem;border-radius:10px;border:none;font-size:.875rem;font-weight:700;
+  cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:.3rem;}
+.btn:active{opacity:.7;}
+.btn.green{background:var(--green);color:#000;}
+.btn.blue{background:var(--blue);color:#000;}
+.btn.gray{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+
+/* ── 商品确认弹窗 ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;
+  display:none;align-items:flex-end;justify-content:center;}
+.overlay.show{display:flex;}
+.sheet{
+  background:var(--surface);border-radius:20px 20px 0 0;
+  padding:1.5rem 1.25rem;padding-bottom:calc(1.5rem + env(safe-area-inset-bottom));
+  width:100%;max-width:480px;
+}
+.sheet-title{font-size:1rem;font-weight:700;margin-bottom:1rem;text-align:center;}
+.product-info{background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  padding:.9rem 1rem;margin-bottom:1rem;display:flex;flex-direction:column;gap:.5rem;}
+.info-row{display:flex;justify-content:space-between;align-items:center;font-size:.875rem;}
+.info-label{color:var(--muted);}
+.info-value{font-weight:600;text-align:right;max-width:60%;}
+.form-group{display:flex;flex-direction:column;gap:.35rem;margin-bottom:.75rem;}
+.form-label{font-size:.8rem;color:var(--muted);}
+.form-input,.form-select{
+  background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:.65rem .85rem;color:var(--text);font-size:.95rem;font-family:inherit;width:100%;
+}
+.form-input:focus,.form-select:focus{outline:none;border-color:var(--blue);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.65rem;}
+.sheet-btns{display:flex;gap:.65rem;margin-top:.25rem;}
+.sheet-btn{flex:1;padding:.9rem;border-radius:10px;border:none;font-size:.95rem;
+  font-weight:700;cursor:pointer;font-family:inherit;}
+.sheet-btn:active{opacity:.75;}
+.sheet-btn.cancel{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+.sheet-btn.confirm{background:var(--green);color:#000;}
+.sheet-lookup{font-size:.78rem;text-align:center;color:var(--muted);margin-bottom:.75rem;}
+.sheet-lookup.loading{color:var(--blue);}
+.sheet-lookup.found{color:var(--green);}
+.sheet-lookup.notfound{color:var(--yellow);}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <span class="topbar-title" id="topbarTitle">📱 手机扫码</span>
+  <div class="conn-badge" id="connBadge">
+    <span class="dot pulse" id="connDot"></span>
+    <span id="connText">连接中...</span>
+  </div>
+</div>
+
+<!-- ── 模式选择页 ── -->
+<div class="page active" id="modePage">
+  <div class="mode-page">
+    <div class="mode-title">选择扫码模式</div>
+    <div class="mode-sub">请根据当前使用场景选择对应模式</div>
+    <div class="conn-info" id="connInfo">正在连接收银台...</div>
+    <div class="err-box" id="errBox"></div>
+    <div class="mode-cards">
+      <div class="mode-card cashier-card" onclick="enterMode('cashier')">
+        <div class="mode-card-icon">💰</div>
+        <div class="mode-card-title">收银模式</div>
+        <div class="mode-card-desc">连续扫码，实时添加商品到收银台购物车</div>
+      </div>
+      <div class="mode-card entry-card" onclick="enterMode('entry')">
+        <div class="mode-card-icon">📦</div>
+        <div class="mode-card-title">商品录入模式</div>
+        <div class="mode-card-desc">扫描条码查询商品信息，确认后录入数据库</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 扫码页（收银 & 录入共用）── -->
+<div class="page" id="scanPage">
+  <div class="video-wrap" id="videoWrap">
+    <video id="video" autoplay playsinline muted></video>
+    <div class="mask top"></div><div class="mask bottom"></div>
+    <div class="mask left"></div><div class="mask right"></div>
+    <div class="scan-frame">
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+    </div>
+    <div class="scan-line" id="scanLine"></div>
+    <div class="mode-tag" id="modeTag">收银模式</div>
+  </div>
+  <div class="bottom-panel">
+    <div class="status-row" id="statusRow">
+      <span class="sicon" id="sicon">🎯</span>
+      <span class="stext" id="stext">将摄像头对准商品条码</span>
+    </div>
+    <div class="recent-list" id="recentList"></div>
+    <div class="btn-row">
+      <button class="btn gray" onclick="backToMode()">← 切换模式</button>
+      <button class="btn green" id="pauseBtn" onclick="togglePause()">⏸ 暂停</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 商品确认底部弹窗（录入模式用）── -->
+<div class="overlay" id="confirmOverlay">
+  <div class="sheet">
+    <div class="sheet-title">📦 确认录入商品</div>
+    <div class="sheet-lookup" id="lookupStatus"></div>
+    <div class="product-info">
+      <div class="info-row">
+        <span class="info-label">条码</span>
+        <span class="info-value" id="ci-barcode">—</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">商品名称 *</label>
+      <input class="form-input" id="ci-name" placeholder="请输入商品名称">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">价格 (¥) *</label>
+        <input class="form-input" id="ci-price" type="number" min="0" step="0.01" placeholder="0.00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">库存</label>
+        <input class="form-input" id="ci-stock" type="number" min="0" placeholder="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">分类</label>
+      <select class="form-select" id="ci-category">
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="sheet-btns">
+      <button class="sheet-btn cancel" onclick="closeConfirm()">取消</button>
+      <button class="sheet-btn confirm" id="confirmSaveBtn" onclick="saveProduct()">✓ 保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function load(src, cb){
+    var s = document.createElement('script');
+    s.src = src; s.onload = cb; s.onerror = cb;
+    document.head.appendChild(s);
+  }
+  load('/zxing.min.js', function(){
+    if (typeof ZXing === 'undefined') {
+      load('https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js', function(){});
+    }
+  });
+})();
+</script>
+<script>
+// ── 参数 & WS ──────────────────────────────────────────
+var urlParams = new URLSearchParams(location.search);
+var ROOM     = urlParams.get('room') || 'default';
+var _p       = location.port ? ':' + location.port : '';
+var _wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+var WS_URL   = _wsProto + '//' + location.hostname + _p + '/ws?role=scanner&room=' + ROOM;
+var BASE_URL = location.protocol + '//' + location.hostname + _p;
+
+var ws = null, wsOK = false;
+
+function connectWS() {
+  try { ws = new WebSocket(WS_URL); } catch(e) { setTimeout(connectWS, 3000); return; }
+  ws.onopen = function() {
+    wsOK = true; setBadge(true);
+    document.getElementById('connInfo').innerHTML = '已连接收银台 <b>房间 ' + ROOM + '</b>';
+  };
+  ws.onmessage = function(e) {
+    try {
+      var msg = JSON.parse(e.data);
+      if (msg.type === 'ack') {
+        setStatus('ok','✅','已录入：' + msg.barcode);
+        setTimeout(function(){ setStatus('','🎯','将摄像头对准商品条码'); }, 2000);
+      }
+    } catch(err) {}
+  };
+  ws.onclose = function() {
+    wsOK = false; setBadge(false);
+    document.getElementById('connInfo').textContent = '连接断开，3秒后重连...';
+    setTimeout(connectWS, 3000);
+  };
+  ws.onerror = function() { ws.close(); };
+}
+function setBadge(ok) {
+  var b=document.getElementById('connBadge'),t=document.getElementById('connText'),d=document.getElementById('connDot');
+  if(ok){b.classList.add('ok');t.textContent='已连接';d.classList.remove('pulse');}
+  else{b.classList.remove('ok');t.textContent='重连中';d.classList.add('pulse');}
+}
+
+// ── 模式 ──────────────────────────────────────────────
+var currentMode = '';   // 'cashier' | 'entry'
+var videoStream = null;
+var scanCanvas  = document.createElement('canvas');
+var scanCtx     = scanCanvas.getContext('2d', { willReadFrequently: true });
+var isPaused    = false;
+var lastCode    = '', lastTime = 0, COOLDOWN = 1800;
+var recentItems = [];
+var entryLocked = false;  // 录入模式下弹窗打开时锁定扫码
+
+function enterMode(mode) {
+  currentMode = mode;
+  document.getElementById('errBox').classList.remove('show');
+
+  // 更新 UI
+  var wrap = document.getElementById('videoWrap');
+  var tag  = document.getElementById('modeTag');
+  var pb   = document.getElementById('pauseBtn');
+  if (mode === 'cashier') {
+    wrap.classList.remove('mode-entry');
+    tag.textContent = '💰 收银模式';
+    pb.className = 'btn green';
+    document.getElementById('topbarTitle').textContent = '📱 收银扫码';
+  } else {
+    wrap.classList.add('mode-entry');
+    tag.textContent = '📦 录入模式';
+    pb.className = 'btn blue';
+    pb.style.background = 'var(--blue)';
+    document.getElementById('topbarTitle').textContent = '📦 录入扫码';
+  }
+
+  // 已有摄像头则直接切页
+  if (videoStream) {
+    showScanPage();
+    return;
+  }
+
+  // 请求摄像头
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+  }).then(function(stream) {
+    videoStream = stream;
+    var video = document.getElementById('video');
+    video.srcObject = stream;
+    video.play();
+    showScanPage();
+    waitForZXing(startDecodeLoop);
+  }).catch(function(e) {
+    var msg = e.name === 'NotAllowedError' ? '摄像头权限被拒绝，请在地址栏允许后刷新。'
+            : e.name === 'NotFoundError'   ? '未找到摄像头设备。'
+            : e.name === 'NotReadableError'? '摄像头被其他应用占用。'
+            : '摄像头启动失败：' + e.name;
+    var box = document.getElementById('errBox');
+    box.textContent = msg; box.classList.add('show');
+  });
+}
+
+function showScanPage() {
+  document.getElementById('modePage').classList.remove('active');
+  document.getElementById('scanPage').classList.add('active');
+  isPaused = false;
+  lastCode = ''; lastTime = 0;
+  resetPauseBtn();
+  setStatus('','🎯','将摄像头对准商品条码');
+}
+
+function backToMode() {
+  document.getElementById('scanPage').classList.remove('active');
+  document.getElementById('modePage').classList.add('active');
+  currentMode = '';
+  lastCode = ''; lastTime = 0;
+}
+
+// ── 解码循环 ──────────────────────────────────────────
+var zxingReader = null;
+
+function waitForZXing(cb) {
+  if (typeof ZXing !== 'undefined') { cb(); return; }
+  var n = 0;
+  var t = setInterval(function(){
+    n++;
+    if (typeof ZXing !== 'undefined') { clearInterval(t); cb(); }
+    else if (n >= 25) { clearInterval(t); setStatus('err','❌','ZXing 加载失败，请刷新'); }
+  }, 200);
+}
+
+function startDecodeLoop() {
+  var hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+    ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.CODE_39,
+    ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E,
+  ]);
+  hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  zxingReader = new ZXing.BrowserMultiFormatReader(hints);
+
+  var video = document.getElementById('video');
+  var fc = 0;
+
+  function tick() {
+    if (!videoStream) return;
+    fc++;
+    if (!isPaused && !entryLocked && fc % 5 === 0 && video.readyState >= 2 && video.videoWidth > 0) {
+      scanCanvas.width  = video.videoWidth;
+      scanCanvas.height = video.videoHeight;
+      scanCtx.drawImage(video, 0, 0);
+      try {
+        var ls  = new ZXing.HTMLCanvasElementLuminanceSource(scanCanvas);
+        var bb  = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(ls));
+        var res = zxingReader.decodeBitmap(bb);
+        var code = res.getText();
+        var now  = Date.now();
+        if (!(code === lastCode && now - lastTime < COOLDOWN)) {
+          lastCode = code; lastTime = now;
+          onDetected(code);
+        }
+      } catch(e) { /* NotFoundException = 正常 */ }
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+function onDetected(code) {
+  if (navigator.vibrate) navigator.vibrate(60);
+  if (currentMode === 'cashier') {
+    onCashierDetected(code);
+  } else if (currentMode === 'entry') {
+    onEntryDetected(code);
+  }
+}
+
+// ── 收银模式 ──────────────────────────────────────────
+function onCashierDetected(code) {
+  if (wsOK && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type:'barcode', barcode:code }));
+    setStatus('ok','✅','发送：' + code);
+  } else {
+    setStatus('err','⚠️','未连接收银台：' + code);
+  }
+  addRecent(code, true);
+}
+
+// ── 录入模式 ──────────────────────────────────────────
+function onEntryDetected(code) {
+  entryLocked = true;  // 锁定扫码，防止重复触发
+  openConfirmSheet(code);
+}
+
+function openConfirmSheet(barcode) {
+  // 重置表单
+  document.getElementById('ci-barcode').textContent = barcode;
+  document.getElementById('ci-name').value  = '';
+  document.getElementById('ci-price').value = '';
+  document.getElementById('ci-stock').value = '';
+  document.getElementById('ci-category').value = '其他';
+  document.getElementById('lookupStatus').className = 'sheet-lookup loading';
+  document.getElementById('lookupStatus').textContent = '⏳ 正在查询条码信息...';
+  document.getElementById('confirmSaveBtn').disabled = false;
+  document.getElementById('confirmOverlay').classList.add('show');
+
+  // 第一步：检查数据库是否已有该商品
+  fetch(BASE_URL + '/api/product/' + encodeURIComponent(barcode))
+    .then(function(res) {
+      if (res.ok) {
+        // 已存在
+        return res.json().then(function(p) {
+          document.getElementById('lookupStatus').className = 'sheet-lookup warn';
+          document.getElementById('lookupStatus').textContent = '⚠️ 该商品已存在于数据库，保存将覆盖原有数据';
+          document.getElementById('ci-name').value  = p.name;
+          document.getElementById('ci-price').value = parseFloat(p.price).toFixed(2);
+          document.getElementById('ci-stock').value = p.stock;
+          document.getElementById('ci-category').value = p.category || '其他';
+        });
+      } else {
+        // 不存在，调用外部 API 查询
+        return fetch(BASE_URL + '/api/barcode-lookup/' + encodeURIComponent(barcode))
+          .then(function(r){ return r.json(); })
+          .then(function(json) {
+            if (json.code === 200 && json.data && json.data.found) {
+              var d = json.data;
+              document.getElementById('lookupStatus').className = 'sheet-lookup found';
+              document.getElementById('lookupStatus').textContent = '✅ 已从云端获取商品信息，请核对后保存';
+              if (d.goods_name) document.getElementById('ci-name').value  = d.goods_name;
+              if (d.price)      document.getElementById('ci-price').value = parseFloat(d.price).toFixed(2);
+              if (d.category) {
+                var catMap = {'饮料':'饮料','零食':'零食','食品':'零食','方便食品':'方便食品','日用':'日用品','日用品':'日用品'};
+                var matched = Object.keys(catMap).find(function(k){ return d.category.indexOf(k) >= 0; });
+                if (matched) document.getElementById('ci-category').value = catMap[matched];
+              }
+            } else {
+              document.getElementById('lookupStatus').className = 'sheet-lookup notfound';
+              document.getElementById('lookupStatus').textContent = '⚠️ 未查询到该条码，请手动填写';
+            }
+          });
+      }
+    })
+    .catch(function() {
+      document.getElementById('lookupStatus').className = 'sheet-lookup notfound';
+      document.getElementById('lookupStatus').textContent = '⚠️ 查询失败，请手动填写';
+    });
+}
+
+function closeConfirm() {
+  document.getElementById('confirmOverlay').classList.remove('show');
+  entryLocked = false;
+  lastCode = ''; lastTime = 0;  // 重置冷却，允许再次扫同一条码
+  setStatus('','🎯','将摄像头对准商品条码');
+}
+
+function saveProduct() {
+  var barcode  = document.getElementById('ci-barcode').textContent.trim();
+  var name     = document.getElementById('ci-name').value.trim();
+  var price    = parseFloat(document.getElementById('ci-price').value);
+  var stock    = parseInt(document.getElementById('ci-stock').value) || 0;
+  var category = document.getElementById('ci-category').value;
+
+  if (!name)         { document.getElementById('ci-name').focus(); return; }
+  if (!price || price <= 0) { document.getElementById('ci-price').focus(); return; }
+
+  var btn = document.getElementById('confirmSaveBtn');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+
+  // 先尝试 PUT（已存在）再 POST（不存在）
+  fetch(BASE_URL + '/api/product/' + encodeURIComponent(barcode))
+    .then(function(res) {
+      var method = res.ok ? 'PUT' : 'POST';
+      var url    = res.ok
+        ? BASE_URL + '/api/products/' + '?barcode=' + encodeURIComponent(barcode)
+        : BASE_URL + '/api/products';
+
+      // 如果已存在，先拿 id
+      if (res.ok) {
+        return res.json().then(function(p) {
+          return fetch(BASE_URL + '/api/products/' + p.id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ barcode:barcode, name:name, price:price, stock:stock, category:category })
+          });
+        });
+      } else {
+        return fetch(BASE_URL + '/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ barcode:barcode, name:name, price:price, stock:stock, category:category })
+        });
+      }
+    })
+    .then(function(res) { return res.json().then(function(d){ return {ok:res.ok, d:d}; }); })
+    .then(function(r) {
+      if (r.ok) {
+        document.getElementById('confirmOverlay').classList.remove('show');
+        entryLocked = false;
+        lastCode = ''; lastTime = 0;
+        setStatus('ok','✅','已保存：' + name);
+        addRecent(barcode, true);
+        setTimeout(function(){ setStatus('','🎯','将摄像头对准商品条码'); }, 2500);
+        if (navigator.vibrate) navigator.vibrate([60,30,60]);
+      } else {
+        btn.disabled = false;
+        btn.textContent = '✓ 保存';
+        setStatus('err','❌','保存失败：' + (r.d.error || ''));
+      }
+    })
+    .catch(function(e) {
+      btn.disabled = false;
+      btn.textContent = '✓ 保存';
+      setStatus('err','❌','网络错误，保存失败');
+    });
+}
+
+// ── 公共工具 ──────────────────────────────────────────
+function addRecent(code, ok) {
+  var t = new Date().toLocaleTimeString('zh-CN',{hour12:false});
+  recentItems.unshift({code:code, t:t, ok:ok});
+  if (recentItems.length > 5) recentItems.pop();
+  document.getElementById('recentList').innerHTML = recentItems.map(function(r){
+    return '<div class="ri"><span class="ri-bc">' + r.code + '</span>'
+         + '<span class="ri-t">' + r.t + '</span>'
+         + '<span class="ri-ok">' + (r.ok ? '✓' : '✗') + '</span></div>';
+  }).join('');
+}
+
+function setStatus(type, icon, text) {
+  var row = document.getElementById('statusRow');
+  row.className = 'status-row' + (type ? ' '+type : '');
+  document.getElementById('sicon').textContent = icon;
+  document.getElementById('stext').textContent = text;
+}
+
+function resetPauseBtn() {
+  var btn = document.getElementById('pauseBtn');
+  btn.textContent = '⏸ 暂停';
+  btn.className = currentMode === 'cashier' ? 'btn green' : 'btn blue';
+  var line = document.getElementById('scanLine');
+  line.style.animationPlayState = 'running';
+  line.style.opacity = '1';
+}
+
+function togglePause() {
+  isPaused = !isPaused;
+  var btn  = document.getElementById('pauseBtn');
+  var line = document.getElementById('scanLine');
+  if (isPaused) {
+    btn.className='btn gray'; btn.textContent='▶ 继续';
+    line.style.animationPlayState='paused'; line.style.opacity='.2';
+    setStatus('','⏸','已暂停扫码');
+  } else {
+    resetPauseBtn();
+    setStatus('','🎯','将摄像头对准商品条码');
+  }
+}
+
+// 加载分类到 scanner 表单
+fetch('/api/categories').then(r=>r.json()).then(cats=>{
+  const sel = document.getElementById('ci-category');
+  if(!cats.length) return;
+  sel.innerHTML = cats.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+}).catch(()=>{});
+
+connectWS();
+</script>
+</body>
+</html>

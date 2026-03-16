@@ -1,0 +1,17 @@
+services:
+  pos:
+    image: convenience-store-pos
+    build: .
+    container_name: convenience-store
+    restart: unless-stopped
+    ports:
+      - "3008:3000"
+      - "3009:3001"
+    volumes:
+      - ./data:/app/data
+      - ./ssl:/app/ssl:ro
+    environment:
+      - NODE_ENV=production
+      - SSL_CERT=/app/ssl/home.zhengmuye.cn.pem
+      - SSL_KEY=/app/ssl/home.zhengmuye.cn.key
+      - TZ=Asia/Shanghai
